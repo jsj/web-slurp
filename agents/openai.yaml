@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web Slurp"
+  short_description: "Capture and decompose modern web bundles"
+  default_prompt: "Use $web-slurp to capture and inspect the JavaScript and styles for this website."
