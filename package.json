@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "web-slurp": "./src/cli.ts"
+    "web-slurp": "./scripts/web-slurp"
   },
   "scripts": {
     "start": "bun run src/cli.ts",

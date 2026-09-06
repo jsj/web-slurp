@@ -36,6 +36,8 @@ jobs:
         run: bun run check
       - name: Run browser tests
         run: xvfb-run -a bun test
+      - name: Check automatic runtime setup
+        run: sh test/bootstrap.sh
       - name: Check package contents
         run: |
           bun pm pack --destination "$RUNNER_TEMP"

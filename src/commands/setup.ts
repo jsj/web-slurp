@@ -13,7 +13,7 @@ export const defaultBinDir = resolve(homedir(), ".local/bin");
 function links(options: InstallOptions): Array<[string, string]> {
   return [
     [packageRoot, resolve(absolute(options.skillsDir), "web-slurp")],
-    [resolve(packageRoot, "src/cli.ts"), resolve(absolute(options.binDir), "web-slurp")],
+    [resolve(packageRoot, "scripts/web-slurp"), resolve(absolute(options.binDir), "web-slurp")],
   ];
 }
 function present(path: string): boolean {
@@ -26,13 +26,14 @@ function owned(source: string, target: string): boolean {
 export function register(options: InstallOptions): void {
   const entries = links(options);
   for (const [source, target] of entries) {
-    if (present(target) && !owned(source, target) && !options.backupExisting) {
+    if (present(target) && !owned(source, target) && !owned(resolve(packageRoot, "src/cli.ts"), target) && !options.backupExisting) {
       throw new Error(`Existing installation: ${target}. Use --backup-existing to preserve it and install this package.`);
     }
     if (source === target) throw new Error(`Cannot install over the package itself: ${source}`);
   }
   for (const [source, target] of entries) {
     if (owned(source, target)) continue;
+    if (owned(resolve(packageRoot, "src/cli.ts"), target)) unlinkSync(target);
     mkdirSync(dirname(target), { recursive: true });
     if (present(target)) {
       // Backups must live outside skills/ so agents do not discover stale skills.

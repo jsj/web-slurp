@@ -4,15 +4,15 @@ Capture a rendered website, inspect its scripts and styles, and keep a local ref
 
 ## Install
 
-Requires Bun and Python 3. From a persistent checkout or unpacked package directory:
+Setup downloads a private Bun runtime and creates a local Python environment. From a persistent checkout or unpacked package directory:
 
 ```bash
 ./setup
 ```
 
-Setup installs locked JavaScript dependencies and Chromium, checks the runtime, and creates:
+Setup installs Bun under `.runtime/`, Python under `.venv/`, locked JavaScript dependencies, and Chromium, checks the runtime, and creates:
 
-- `~/.local/bin/web-slurp` → the package CLI
+- `~/.local/bin/web-slurp` → the package CLI launcher
 - `~/.agents/skills/web-slurp` → this package directory, including `SKILL.md` and its references
 
 Keep the package directory in place. Add `~/.local/bin` to your shell's `PATH` if setup reports it missing. Installation creates no agent hooks and makes no changes to shell configuration.

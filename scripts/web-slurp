@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+slurp_script=$0
+while [ -L "$slurp_script" ]; do
+  slurp_dir=$(cd -- "$(dirname -- "$slurp_script")" && pwd -P)
+  slurp_script=$(readlink "$slurp_script")
+  case "$slurp_script" in /*) ;; *) slurp_script="$slurp_dir/$slurp_script" ;; esac
+done
+slurp_root=$(cd -- "$(dirname -- "$slurp_script")/.." && pwd -P)
+export PATH="$slurp_root/.runtime/bun/bin:$PATH"
+exec bun run "$slurp_root/src/cli.ts" "$@"

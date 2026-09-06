@@ -27,7 +27,7 @@ Compare the result with the reference.
 
 ## Install
 
-Requires [Bun](https://bun.sh) and Python 3. Pages that need a login also require Google Chrome.
+Setup installs the runtime and browser on macOS and Linux.
 
 ```sh
 gh repo clone jsj/web-slurp
