@@ -403,14 +403,26 @@ def main() -> None:
     write_text(outdir / "stylesheet-urls.txt", "\n".join(stylesheet_urls) + ("\n" if stylesheet_urls else ""))
 
     css_downloads: list[dict[str, Any]] = []
+    # Reuse browser-authenticated CSS before considering a network download.
+    manifest = read_json(target_dir / "input" / "assets" / "manifest.json") or {}
+    captured_urls: set[str] = set()
+    if not (args.download_css and args.force):
+        for asset in manifest.get("assets", []):
+            path = asset.get("path", "")
+            if asset.get("type") != "Stylesheet" or asset.get("status") != "saved" or not re.fullmatch(r"input/assets/[a-f0-9]{64}(?:\.[a-zA-Z0-9]{1,10})?", path):
+                continue
+            css_file = target_dir / path
+            if css_file.is_file():
+                captured_urls.add(asset["url"])
+                css_downloads.append({"href": asset["url"], "absolute_url": asset["url"], "local_file": str(css_file), "downloaded": False, "status": "existing", "bytes": css_file.stat().st_size})
     if args.download_css and stylesheet_urls:
-        css_downloads = download_stylesheets(
-            stylesheet_urls,
+        css_downloads.extend(download_stylesheets(
+            [url for url in stylesheet_urls if urljoin(base_url, url) not in captured_urls],
             base_url,
             outdir / "css",
             args.force,
             args.timeout,
-        )
+        ))
     else:
         existing_css_dir = outdir / "css"
         if existing_css_dir.exists():

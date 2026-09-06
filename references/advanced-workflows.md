@@ -5,8 +5,7 @@
 After identifying and beautifying the webpack runtime, list resolved chunks through the stable CLI before downloading:
 
 ```bash
-SLURP="$HOME/.codex/skills/web-slurp"
-bun run "$SLURP/src/cli.ts" chunks \
+web-slurp chunks \
   --app-js "/absolute/path/runtime.beautified.js" \
   --outdir "/absolute/path/output/chunks" \
   --base-url "https://example.com/_next/static/chunks" \
@@ -20,7 +19,7 @@ Inspect the list before removing `--list`. If filenames follow a different conve
 Auto detection uses common Turbopack markers and otherwise selects webpack. Override it when inspection shows a false classification:
 
 ```bash
-bun run "$SLURP/src/cli.ts" split "/absolute/input.js" "/absolute/output/modules" --format turbopack
+web-slurp split "/absolute/input.js" "/absolute/output/modules" --format turbopack
 ```
 
 Beautification is a prerequisite because both splitters use lexical structure and readable wrapper boundaries. If splitting fails, retain the untouched input, inspect the bundle wrapper, and report the failure rather than inventing module boundaries.

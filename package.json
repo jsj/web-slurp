@@ -1,6 +1,6 @@
 {
   "name": "web-slurp",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "bin": {
@@ -8,15 +8,38 @@
   },
   "scripts": {
     "start": "bun run src/cli.ts",
-    "check": "bunx tsc --noEmit",
-    "test": "bun test"
+    "check": "tsc --noEmit",
+    "test": "bun test",
+    "prepack": "cp bun.lock dependencies.lock"
   },
   "dependencies": {
     "agent-browser": "0.34.0",
-    "commander": "^14.0.0"
+    "commander": "^14.0.0",
+    "js-beautify": "2.0.3",
+    "pixelmatch": "7.2.0",
+    "pngjs": "7.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/js-beautify": "1.14.3",
+    "@types/pixelmatch": "5.2.6",
+    "@types/pngjs": "6.0.5",
     "typescript": "^5.9.0"
+  },
+  "description": "Capture rendered websites, inspect their assets, and replay local references.",
+  "files": [
+    "src",
+    "harness",
+    "scripts",
+    "references",
+    "agents",
+    "SKILL.md",
+    "README.md",
+    "setup",
+    "update",
+    "dependencies.lock"
+  ],
+  "engines": {
+    "bun": ">=1.3.0"
   }
 }

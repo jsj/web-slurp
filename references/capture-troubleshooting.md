@@ -1,59 +1,67 @@
 # Capture troubleshooting
 
-## Portable agent-browser capture
+## Public pages
 
-Use `capture` first for public pages. It writes rendered HTML, metadata, and a newline-delimited script URL list under `<target>/input`.
+`web-slurp capture <url> --out <target>` launches the pinned agent-browser runtime and captures rendered HTML and script/stylesheet URLs. Use `--wait-for <selector>` for application readiness. For continuously active pages, use `--wait-until domcontentloaded` with a selector.
 
-Install Chromium with `"$SLURP/scripts/agent-browser.sh" install --with-deps`. The wrapper uses the pinned agent-browser package and an isolated daemon directory, so it cannot conflict with a different global agent-browser version. The package includes native executables for macOS, Linux, and Windows.
+Install Chromium with `web-slurp setup`, or use `scripts/agent-browser.sh install --with-deps` when Linux system libraries are missing. On Linux ARM64, install distro Chromium and set `AGENT_BROWSER_EXECUTABLE_PATH` to its executable.
 
-Chrome for Testing has no Linux ARM64 build. On Ubuntu or Debian ARM64, install `chromium` with the system package manager and set `AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium`.
+Capture does not scroll, dismiss consent dialogs, or discover interactions automatically. Resource Timing includes already-fetched dynamic imports; it cannot enumerate every lazy route. Stored HTML preserves the rendered DOM; replay adjustments do not mutate that evidence.
 
-If the script list is unexpectedly empty, inspect the rendered HTML for iframes, CSP errors, delayed loading, or a consent gate. Capture waits for hydration, but it does not interact with consent dialogs or scroll-triggered loaders.
+## Sign in and resume
 
-Captured HTML contains a `<base>` element pointing at the final page URL. It also removes `crossorigin` attributes from the cloned evidence document because those attributes can reject original-origin assets during localhost replay. The live page is not mutated.
-
-## Authenticated Chrome CDP
-
-Use CDP only with a browser profile the user has authorized. Prefer this route when Google rejects an automated browser as insecure, or when headless capture redirects to login.
-
-Modern Chrome ignores remote debugging on its default profile. Launch a dedicated profile with the bundled helper:
+Use a named, persistent regular Chrome profile when the target needs authentication or rejects automated Chromium:
 
 ```bash
-SLURP="${SLURP:-$HOME/.agents/skills/web-slurp}"
-"$SLURP/scripts/start-cdp-chrome.sh" "https://example.com/login"
+web-slurp capture https://example.com/dashboard --out ./targets/dashboard \
+  --profile work --wait-for '#dashboard-ready'
 ```
 
-The helper finds Canary, Chrome, or Chromium, uses a dedicated temporary profile, and verifies `http://127.0.0.1:9222/json/version`. Ask the user to authenticate in that window; never request credentials in chat or pass them on the command line.
+Chrome opens a new capture tab. The user signs in themselves, including MFA. The command waits up to five minutes for the expected URL and visible selector, then captures that tab automatically. It never enters credentials. Pick a selector unique to the signed-in state. If login lands on a different URL, add `--ready-url https://example.com/home`; matching checks the full URL, including query and hash. Increase `--auth-timeout <seconds>` when needed.
 
-After the user confirms authentication, attach without copying cookies or profile data:
+A timeout saves no page evidence and releases the capture lock. Chrome remains open, so the user can finish login and rerun the same command and output directory. Ctrl-C also releases the lock and preserves the profile. A forced kill can leave `.capture-lock`; check for a running capture before removing it.
+
+Profiles live under `~/.local/share/web-slurp/profiles/<name>` and retain cookies and other browser state across restarts. Keep this directory private and out of capture archives or Git. Override its root with `WEB_SLURP_PROFILE_ROOT`; set `WEB_SLURP_CHROME` to a regular Chrome executable if auto-detection fails. A profile must not be used by another Chrome process outside this launcher.
+
+Manage the browser separately when collecting several pages:
 
 ```bash
-"$SLURP/scripts/agent-browser.sh" --cdp 9222 tab
-"$SLURP/scripts/agent-browser.sh" --cdp 9222 get url
-"$SLURP/scripts/agent-browser.sh" --cdp 9222 snapshot -i -u
-"$SLURP/scripts/agent-browser.sh" --cdp 9222 screenshot body "$TARGET/output/page.png" --full
-bun run "$SLURP/src/cli.ts" capture-cdp "$TARGET" --page-url "https://example.com/dashboard"
+web-slurp browser open https://example.com/login --profile work
+web-slurp browser status --profile work
+web-slurp browser close --profile work
 ```
 
-The dedicated CDP Chrome stays open so several protected routes can share the authenticated session. Stop it explicitly when the capture is complete:
+Closing preserves the profile's login state. Close a dedicated browser when finished. The launcher selects a free CDP port and verifies the browser ID against that profile's `DevToolsActivePort` file before attaching or closing. It does not adopt a browser simply because port 9222 responds.
+
+The legacy start/stop helper scripts now delegate to these commands, using `WEB_SLURP_PROFILE` (default `default`). Old `WEB_SLURP_CDP_PORT` and `WEB_SLURP_CDP_PROFILE` overrides are rejected with migration instructions. Existing `/tmp/web-slurp-cdp-profile` data is left untouched.
+
+## Explicit CDP sessions and assets
+
+For a Chrome session the user already authorized, `capture-cdp` remains available. Get the endpoint from `browser status` for a managed profile; do not assume a fixed port.
 
 ```bash
-"$SLURP/scripts/stop-cdp-chrome.sh"
+web-slurp capture-cdp ./targets/dashboard --page-url https://example.com/dashboard \
+  --cdp http://127.0.0.1:PORT
 ```
 
-For multiple protected routes, navigate with visible links or buttons, wait for the expected URL, and capture each page separately. Do not click purchase, upgrade, delete, key-creation, or other mutating controls unless explicitly authorized. Treat screenshots and rendered text as private evidence and keep them out of version control.
+This captures the selected page immediately; it does not wait for login. An exact URL match takes precedence over a prefix, and ambiguous matches fail. For direct browser inspection, use `scripts/agent-browser.sh --session <unique-name> --cdp <port>` and select the correct tab before interacting.
 
-Collect same-origin static assets only after inspecting the active page's script and stylesheet URLs. Exclude analytics, authentication, payment, and API-data origins. Feed the reviewed newline-delimited list to `download`; the CDP downloader is for static JavaScript/CSS assets, not authenticated API responses.
+Authenticated asset downloads require the optional Python package installed by `web-slurp setup --with-cdp`. Review the URL list and retain only the necessary static JS/CSS assets before downloading:
 
-Review the URL list before downloading. Remove unrelated third-party analytics, advertising, and session endpoints. The downloader is intended for static script/CSS assets, not API data exfiltration.
+```bash
+web-slurp download ./targets/dashboard/input/bundles/script-urls.txt \
+  ./targets/dashboard/input/bundles/raw --referer https://example.com/dashboard \
+  --cdp http://127.0.0.1:PORT
+```
 
-The CDP downloader requires the Python package `websocket-client`. Install it in the active Python environment if the import is missing.
+The legacy downloader navigates the first page tab to the referer. Use a dedicated browser session for it; it is not a general authenticated API client. Exclude unrelated analytics, payments, authentication endpoints, and API data. Keep private captures out of version control.
 
-## Failure interpretation
+## Failures
 
-- Connection refused: Chrome is not running with remote debugging on the selected port.
-- CDP still unavailable after Chrome opens: confirm a non-default `--user-data-dir` is present and that another Chrome instance did not absorb the launch request.
-- Google says the browser may not be secure: authenticate in the dedicated regular Chrome window launched by the helper, not an automation-managed Chrome for Testing session.
-- HTTP 404 from `/json/version`: the endpoint is not a healthy Chrome CDP service.
-- Fetch failures: confirm the referer, authenticated session, CSP/CORS behavior, and URL validity.
-- Tiny or HTML `.js` files: inspect for a login page, bot challenge, or edge error; do not pass them to the splitter.
+- **Chrome not found:** set `WEB_SLURP_CHROME` to its executable, not the app directory.
+- **Profile launch or shutdown already in progress:** another command holds `.launch-lock`; after an interrupted launch, verify Chrome's state before removing the lock.
+- **Chrome exits before becoming ready:** the profile may already be open elsewhere. Close that instance or choose another profile name.
+- **Sign-in/readiness timeout:** finish login in Chrome, check the final URL and selector, then retry. A page redirect may need `--ready-url`.
+- **Capture tab closed:** rerun the command; the persistent profile retains its login state.
+- **Google rejects automated Chromium:** use `--profile` with regular Chrome and let the user complete sign-in there.
+- **Tiny or HTML `.js` files:** inspect for login pages or server errors before splitting them.

@@ -44,9 +44,15 @@ export function requireFile(path: string): void {
   }
 }
 
-export function run(command: string, args: string[]): void {
+export function pythonExecutable(): string {
+  const local = resolve(import.meta.dir, "../.venv/bin/python3");
+  return existsSync(local) ? local : "python3";
+}
+
+export function run(command: string, args: string[], env?: NodeJS.ProcessEnv): void {
+  if (command === "python3") command = pythonExecutable();
   console.log(`+ ${[command, ...args].join(" ")}`);
-  const result = spawnSync(command, args, { stdio: "inherit" });
+  const result = spawnSync(command, args, { stdio: "inherit", env });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`Command failed with exit code ${result.status ?? "unknown"}: ${command}`);

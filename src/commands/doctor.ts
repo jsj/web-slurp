@@ -1,18 +1,17 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { agentBrowserCli, agentBrowserEnv } from "../agent-browser";
-import { findHarness } from "../harness";
+import { findHarness, pythonExecutable } from "../harness";
 
 function executable(name: string): string | null {
   return Bun.which(name);
 }
 
-export async function doctor(cdp: string): Promise<void> {
+export async function doctor(cdp: string, options: { skipBrowser?: boolean; requireCdp?: boolean } = {}): Promise<void> {
   const checks: Array<[string, string | null]> = [
     ["harness", findHarness()],
     ["bun", executable("bun")],
-    ["python3", executable("python3")],
-    ["npx", executable("npx")],
+    ["python3", executable(pythonExecutable())],
     ["agent-browser", existsSync(agentBrowserCli) ? agentBrowserCli : null],
   ];
   let failed = false;
@@ -21,15 +20,15 @@ export async function doctor(cdp: string): Promise<void> {
     failed ||= !value;
   }
 
-  const websocket = spawnSync("python3", ["-c", "import websocket"], { stdio: "ignore" }).status === 0;
-  console.log(`${websocket ? "OK" : "MISSING"} python websocket-client`);
-  failed ||= !websocket;
+  const websocket = spawnSync(pythonExecutable(), ["-c", "import websocket"], { stdio: "ignore" }).status === 0;
+  console.log(`${websocket ? "OK" : options.requireCdp ? "MISSING" : "OPTIONAL"} python websocket-client`);
+  failed ||= Boolean(options.requireCdp && !websocket);
 
-  const browserRuntime = spawnSync("bun", [agentBrowserCli, "doctor", "--offline", "--json"], {
+  const browserRuntime = options.skipBrowser || spawnSync("bun", [agentBrowserCli, "doctor", "--offline", "--json"], {
     env: agentBrowserEnv(),
     stdio: "ignore",
   }).status === 0;
-  console.log(`${browserRuntime ? "OK" : "MISSING"} agent-browser runtime`);
+  console.log(`${options.skipBrowser ? "SKIPPED" : browserRuntime ? "OK" : "MISSING"} agent-browser runtime`);
   failed ||= !browserRuntime;
 
   let cdpHealthy = false;

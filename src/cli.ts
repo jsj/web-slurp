@@ -1,7 +1,13 @@
 #!/usr/bin/env bun
+import { setup, uninstall, defaultSkillsDir, defaultBinDir, packageRoot } from "./commands/setup";
+import { run } from "./harness";
+import { resolve } from "node:path";
+import packageJson from "../package.json";
 import { Command, Option } from "commander";
 import { beautify, chunks, rename, split } from "./commands/bundles";
-import { capture, captureCdp, download } from "./commands/capture";
+import { capture, captureCdp, captureResponsive, compare, download } from "./commands/capture";
+import { browserStatus, openBrowser, closeBrowser } from "./commands/browser";
+import { captureFlow } from "./commands/flow";
 import { doctor } from "./commands/doctor";
 import { styles } from "./commands/styles";
 import { serve } from "./commands/serve";
@@ -10,8 +16,29 @@ import { initTarget } from "./commands/target";
 const program = new Command()
   .name("web-slurp")
   .description("Capture and decompose modern web bundles")
-  .version("0.1.0")
+  .version(packageJson.version)
   .showHelpAfterError();
+
+for (const name of ["setup", "uninstall", "update"] as const) {
+  const command = program.command(name)
+    .description(name === "uninstall" ? "Remove only this package's CLI and skill links" : name === "update" ? "Fast-forward a clean Git checkout and rerun setup" : "Verify dependencies and register CLI and skill links")
+    .option("--skills-dir <path>", "Skill registration directory", defaultSkillsDir)
+    .option("--bin-dir <path>", "CLI registration directory", defaultBinDir);
+  if (name !== "uninstall") command
+    .option("--backup-existing", "Preserve conflicting installations before linking", false)
+    .option("--skip-browser", "Register without installing or checking Chromium", false)
+    .option("--with-cdp", "Install optional authenticated-download dependency in a local venv", false);
+  command.action(name === "setup" ? setup : name === "uninstall" ? uninstall : () => run("sh", [resolve(packageRoot, "update"), ...process.argv.slice(3)]));
+}
+
+const browser = program.command('browser').description('Manage persistent Chrome profiles for authenticated captures');
+browser.command('open').argument('[url]', 'Page to open', 'about:blank')
+  .option('--profile <name>', 'Named Chrome profile', 'default')
+  .action((url, options) => openBrowser(options.profile, url));
+browser.command('status').option('--profile <name>', 'Named Chrome profile', 'default')
+  .action(async options => console.log(JSON.stringify(await browserStatus(options.profile), null, 2)));
+browser.command('close').option('--profile <name>', 'Named Chrome profile', 'default')
+  .action(options => closeBrowser(options.profile));
 
 program.command("doctor")
   .description("Check harness and tool prerequisites")
@@ -27,8 +54,41 @@ program.command("init")
 program.command("capture")
   .description("Capture rendered HTML and script URLs with headless Chromium")
   .argument("<url>", "HTTP(S) page URL")
-  .argument("<target>", "Target artifact directory")
-  .action(capture);
+  .argument("[target]", "Target artifact directory (legacy positional form)")
+  .option("--out <path>", "Target artifact directory")
+  .option("--viewport <size>", "Viewport WIDTHxHEIGHT", "1440x900")
+  .option("--device-scale-factor <number>", "Screenshot pixel density", Number, 1)
+  .option("--wait-for <selector>", "Wait for a visible element before capturing")
+  .option("--profile <name>", "Use a persistent visible Chrome profile; requires --wait-for")
+  .option("--ready-url <url>", "Expected signed-in URL if it differs from the requested URL")
+  .option("--auth-timeout <seconds>", "Time allowed for sign-in and page readiness", Number, 300)
+  .addOption(new Option("--wait-until <state>", "Browser readiness state").choices(["load", "domcontentloaded", "networkidle"]).default("networkidle"))
+  .action((url, target, options) => {
+    if (target && options.out) throw new Error("Use either a positional target or --out, not both.");
+    if (!target && !options.out) throw new Error("Specify an artifact directory with --out <path>.");
+    return capture(url, options.out ?? target, options);
+  });
+
+for (const name of ['capture-responsive', 'compare'] as const) {
+  const command = program.command(name)
+    .description(name === 'compare' ? 'Capture a clone at the reference viewport and write a visual diff' : 'Capture desktop and mobile layouts together');
+  if (name === 'compare') command.argument('<reference>', 'Reference capture directory');
+  command.argument('<url>', 'Page URL').requiredOption('--out <path>', 'New artifact directory')
+    .option('--wait-for <selector>', 'Visible readiness selector')
+    .option('--profile <name>', 'Persistent Chrome profile')
+    .option('--ready-url <url>', 'Expected signed-in URL')
+    .option('--auth-timeout <seconds>', 'Sign-in timeout', Number, 300);
+  if (name === 'compare') command.action((reference, url, options) => compare(reference, url, options.out, options));
+  else command.action((url, options) => captureResponsive(url, options.out, options));
+}
+
+program.command('flow').description('Capture named interaction states from an explicit JSON walkthrough')
+  .argument('<url>', 'Page URL').requiredOption('--out <path>', 'New artifact directory')
+  .requiredOption('--steps <file>', 'JSON array of named click/hover/scroll/waitFor steps')
+  .option('--profile <name>', 'Persistent Chrome profile for signed-in pages')
+  .option('--viewport <size>', 'Viewport WIDTHxHEIGHT', '1440x900')
+  .option('--timeout <seconds>', 'Readiness timeout per step', Number, 30)
+  .action((url, options) => captureFlow(url, options.out, options.steps, options));
 
 program.command("capture-cdp")
   .description("Capture the rendered page and static asset URLs from an authorized Chrome CDP session")
@@ -91,10 +151,11 @@ program.command("serve")
   .argument("<target>", "Target artifact directory")
   .option("--host <host>", "Local bind address", "127.0.0.1")
   .option("--port <port>", "Local port", (value) => Number(value), 4174)
-  .action((target: string, options: { host: string; port: number }) => serve(target, options));
+  .option("--live-assets", "Fetch missing same-origin static assets from the source", false)
+  .action((target: string, options: { host: string; port: number; liveAssets: boolean }) => serve(target, options));
 
 program.parseAsync().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`web-slurp: ${message}`);
-  process.exitCode = 1;
+  process.exitCode ||= 1;
 });

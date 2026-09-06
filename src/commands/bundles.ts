@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs";
+import beautifier from "js-beautify";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { absolute, BundleFormat, detectFormat, harnessScript, requireFile, run } from "../harness";
 
@@ -7,7 +8,7 @@ export function beautify(inputPath: string, outputPath: string): void {
   const output = absolute(outputPath);
   requireFile(input);
   mkdirSync(dirname(output), { recursive: true });
-  run("npx", ["-y", "js-beautify", input, "-o", output]);
+  writeFileSync(output, beautifier.js(readFileSync(input, "utf8")));
 }
 
 export function split(inputPath: string, outdirPath: string, requested: BundleFormat | "auto"): void {

@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+cd -- "$(dirname -- "$0")"
+command -v bun >/dev/null 2>&1 || { echo 'Bun is required. Install Bun, then run ./setup again.' >&2; exit 1; }
+[ -f bun.lock ] || cp dependencies.lock bun.lock
+bun install --frozen-lockfile
+exec bun run src/cli.ts setup "$@"

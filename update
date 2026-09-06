@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+cd -- "$(dirname -- "$0")"
+[ -d .git ] || { echo 'This install is not a Git checkout. Update it with the package manager used to install it.' >&2; exit 1; }
+[ -z "$(git status --porcelain)" ] || { echo 'Working tree has local changes. Commit or stash them before updating.' >&2; exit 1; }
+git pull --ff-only
+exec ./setup "$@"
