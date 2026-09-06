@@ -38,9 +38,15 @@
     "setup",
     "update",
     "dependencies.lock",
-    ".README"
+    ".README",
+    "LICENSE"
   ],
   "engines": {
     "bun": ">=1.3.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jsj/web-slurp.git"
   }
 }
