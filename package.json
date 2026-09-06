@@ -37,7 +37,8 @@
     "README.md",
     "setup",
     "update",
-    "dependencies.lock"
+    "dependencies.lock",
+    ".README"
   ],
   "engines": {
     "bun": ">=1.3.0"
