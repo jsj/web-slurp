@@ -64,4 +64,4 @@ Your files and browser profiles remain.
 
 [Development and tests](references/usage.md#develop)
 
-[Apache 2.0](LICENSE) · Copyright 2026 James Jackson.
+[License](LICENSE)
