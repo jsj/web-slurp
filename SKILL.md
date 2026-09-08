@@ -9,7 +9,7 @@ Use the bundled `web-slurp` CLI. Store captures in the user's project, outside t
 
 ## Start
 
-If `web-slurp` is unavailable, run `./setup` from this skill's package directory. Setup installs pinned dependencies and Chromium, checks prerequisites, and links the CLI and skill. It preserves existing installations only when explicitly given `--backup-existing`. Use `web-slurp doctor` to diagnose an installed runtime.
+If `web-slurp` is unavailable, run `./setup` from this skill's package directory. Setup copies the package to `~/.web-slurp`, installs dependencies (including the latest agent-browser) and Chromium, checks prerequisites, and links the CLI and skill to that stable location. It preserves conflicting registrations when explicitly given `--backup-existing`. Use `web-slurp doctor` to diagnose an installed runtime.
 
 ```bash
 web-slurp capture https://example.com --out ./targets/example

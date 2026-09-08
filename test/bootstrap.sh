@@ -6,12 +6,15 @@ trap 'rm -rf "$slurp_test"' EXIT HUP INT TERM
 bun pm pack --destination "$slurp_test" >/dev/null
 tar -xzf "$slurp_test"/web-slurp-*.tgz -C "$slurp_test"
 cd "$slurp_test/package"
+export WEB_SLURP_INSTALL_DIR="$slurp_test/installed"
 for attempt in 1 2; do
   env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh ./setup --skip-browser --with-cdp \
     --skills-dir "$slurp_test/skills" --bin-dir "$slurp_test/bin"
 done
 env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" --version
-.venv/bin/python3 -c 'import websocket, sys; assert sys.prefix != sys.base_prefix'
+"$WEB_SLURP_INSTALL_DIR/.venv/bin/python3" -c 'import websocket, sys; assert sys.prefix != sys.base_prefix'
+mv "$slurp_test/package" "$slurp_test/moved-source"
+cd "$slurp_test"
 env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" init "$slurp_test/capture"
 printf '%s\n' '<!doctype html><html><head><style>body { color: red; }</style></head><body>Fixture</body></html>' > "$slurp_test/capture/input/page-source/fixture.html"
 env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" styles "$slurp_test/capture"

@@ -13,7 +13,7 @@
     "prepack": "cp bun.lock dependencies.lock"
   },
   "dependencies": {
-    "agent-browser": "0.34.0",
+    "agent-browser": "latest",
     "commander": "^14.0.0",
     "js-beautify": "2.0.3",
     "pixelmatch": "7.2.0",

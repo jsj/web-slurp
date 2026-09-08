@@ -35,7 +35,8 @@ cd web-slurp
 ./setup
 ```
 
-Setup installs the CLI and agent skill as links to this checkout. Keep the checkout in place.
+Setup copies the package to `~/.web-slurp` and links the CLI and agent skill there.
+You can move or remove the original checkout. Setup and update fetch the latest agent-browser release.
 If prompted, add `~/.local/bin` to your `PATH`.
 
 ## Use

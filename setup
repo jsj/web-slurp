@@ -2,6 +2,17 @@
 set -eu
 cd -- "$(dirname -- "$0")"
 slurp_root=$(pwd -P)
+slurp_install=${WEB_SLURP_INSTALL_DIR:-"$HOME/.web-slurp"}
+mkdir -p "$slurp_install"
+slurp_install=$(cd "$slurp_install" && pwd -P)
+if [ "$slurp_root" != "$slurp_install" ]; then
+  # Copy the package, including Git metadata for updates, but recreate runtimes
+  # at their final location (Python virtual environments are not relocatable).
+  tar --exclude='./node_modules' --exclude='./.venv' --exclude='./.runtime' \
+    --exclude='./targets' --exclude='./.DS_Store' -cf - . | tar -xf - -C "$slurp_install"
+  cd "$slurp_install"
+  exec ./setup "$@"
+fi
 export PATH="$slurp_root/.runtime/bun/bin:$PATH"
 
 if [ ! -x .runtime/bun/bin/bun ]; then
@@ -34,4 +45,5 @@ fi
 
 [ -f bun.lock ] || cp dependencies.lock bun.lock
 bun install --frozen-lockfile
+bun update agent-browser --no-save
 exec bun run src/cli.ts setup "$@"

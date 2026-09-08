@@ -5,7 +5,7 @@
     "": {
       "name": "web-slurp",
       "dependencies": {
-        "agent-browser": "0.34.0",
+        "agent-browser": "latest",
         "commander": "^14.0.0",
         "js-beautify": "2.0.3",
         "pixelmatch": "7.2.0",
@@ -35,7 +35,7 @@
 
     "abbrev": ["abbrev@5.0.0", "", {}, "sha512-/XrFJgzQQQHpti1raDJC6m4ws6aNktmjBlhk8Fdlk7LwCEuDoieEJJY9OFHjfiFJFFRM2tK+Ky/IsfbbmlMu1w=="],
 
-    "agent-browser": ["agent-browser@0.34.0", "", { "bin": { "agent-browser": "./bin/agent-browser.js" } }, "sha512-eR6Ey4I/DMs9zZ60b3ziV6pgLIgpxXWzggr3dfFbtskLmeXPJAgXCIIwVL4PihVYJqEUpvWgUKlZ2CIjY1u44g=="],
+    "agent-browser": ["agent-browser@0.37.0", "", { "bin": { "agent-browser": "./bin/agent-browser.js" } }, "sha512-svfMQ+bNTtJCNdJyuBWrhFLaGfKqaxwmOlFQo4+pvQDPxNvP/zRujs453GtI+naCDtPl6P28HUl3ByH8qxj8YQ=="],
 
     "balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 

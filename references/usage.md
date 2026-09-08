@@ -15,7 +15,7 @@ Setup installs Bun under `.runtime/`, Python under `.venv/`, locked JavaScript d
 - `~/.local/bin/web-slurp` → the package CLI launcher
 - `~/.agents/skills/web-slurp` → this package directory, including `SKILL.md` and its references
 
-Keep the package directory in place. Add `~/.local/bin` to your shell's `PATH` if setup reports it missing. Installation creates no agent hooks and makes no changes to shell configuration.
+Setup copies the package to `~/.web-slurp`; the original checkout can move or be removed. Set `WEB_SLURP_INSTALL_DIR` to override the installation directory. Add `~/.local/bin` to your shell's `PATH` if setup reports it missing. Installation creates no agent hooks and makes no changes to shell configuration.
 
 If a skill or CLI already exists, setup stops. Use `./setup --backup-existing` to move conflicts to unique backups before creating links. Backups are stored in `web-slurp-backups/` beside the registration directory (for example, `~/.agents/web-slurp-backups/`), outside skill discovery. Repeating setup keeps existing links. Override registration locations with `--skills-dir <dir>` and `--bin-dir <dir>`.
 
@@ -124,7 +124,7 @@ web-slurp update
 web-slurp uninstall
 ```
 
-Update uses `git pull --ff-only` and reruns setup with locked dependencies. It refuses dirty checkouts. Pass the same custom registration flags used during setup if applicable. For an unpacked package, replace it using your package manager and rerun setup.
+Update uses `git pull --ff-only` and reruns setup, refreshing agent-browser to the latest release. It refuses dirty checkouts. Pass the same custom registration flags used during setup if applicable. For an unpacked package, replace it using your package manager and rerun setup.
 
 Uninstall removes only links pointing to this package. It leaves source files, browser caches, Python dependencies, captures, and unique backups intact. Restore an earlier installation by moving its backup back after uninstalling.
 
