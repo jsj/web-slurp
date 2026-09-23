@@ -43,6 +43,17 @@ test('registration preserves conflicts, repeats cleanly, and removes only owned 
   expect(existsSync(skill)).toBe(true);
 });
 
+test('registration replaces a legacy web-slurp skill without an upgrade flag', () => {
+  const root = temporary();
+  const options = { skillsDir: resolve(root, 'skills'), binDir: resolve(root, 'bin') };
+  const skill = resolve(options.skillsDir, 'web-slurp');
+  mkdirSync(skill, { recursive: true });
+  writeFileSync(resolve(skill, 'package.json'), JSON.stringify({ name: 'web-slurp', version: '0.1.0' }));
+  register(options);
+  expect(lstatSync(skill).isSymbolicLink()).toBe(true);
+  expect(existsSync(resolve(root, 'web-slurp-backups'))).toBe(false);
+});
+
 test('capture discovers imports, waits for the page, and preserves evidence', async () => {
   const target = resolve(temporary(), 'capture');
   const server = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch(request) {

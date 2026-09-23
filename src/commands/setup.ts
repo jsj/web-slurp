@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, renameSync, symlinkSync, unlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { agentBrowserCli, agentBrowserEnv } from "../agent-browser";
@@ -23,10 +23,15 @@ function owned(source: string, target: string): boolean {
   return present(target) && lstatSync(target).isSymbolicLink()
     && resolve(dirname(target), readlinkSync(target)) === source;
 }
+function legacySkill(source: string, target: string): boolean {
+  if (source !== packageRoot || !present(target) || lstatSync(target).isSymbolicLink()) return false;
+  try { return JSON.parse(readFileSync(resolve(target, "package.json"), "utf8")).name === "web-slurp"; }
+  catch { return false; }
+}
 export function register(options: InstallOptions): void {
   const entries = links(options);
   for (const [source, target] of entries) {
-    if (present(target) && !owned(source, target) && !owned(resolve(packageRoot, "src/cli.ts"), target) && !options.backupExisting) {
+    if (present(target) && !owned(source, target) && !owned(resolve(packageRoot, "src/cli.ts"), target) && !legacySkill(source, target) && !options.backupExisting) {
       throw new Error(`Existing installation: ${target}. Use --backup-existing to preserve it and install this package.`);
     }
     if (source === target) throw new Error(`Cannot install over the package itself: ${source}`);
@@ -34,6 +39,10 @@ export function register(options: InstallOptions): void {
   for (const [source, target] of entries) {
     if (owned(source, target)) continue;
     if (owned(resolve(packageRoot, "src/cli.ts"), target)) unlinkSync(target);
+    if (legacySkill(source, target)) {
+      rmSync(target, { recursive: true });
+      console.log(`Removed legacy installation: ${target}`);
+    }
     mkdirSync(dirname(target), { recursive: true });
     if (present(target)) {
       // Backups must live outside skills/ so agents do not discover stale skills.
