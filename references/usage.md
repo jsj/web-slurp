@@ -99,6 +99,17 @@ Create `steps.json`:
 web-slurp flow https://example.com --steps steps.json --out ./targets/example-flow
 ```
 
+Semantic clicks are optional. Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, then use `clickIntent` to choose among visible links and buttons; `expect` verifies the resulting visible page. Requests use Cloudflare AI Gateway's `typesafe/jev` model through `/ai/run`; set `CLOUDFLARE_AI_GATEWAY_ID` to override the `default` gateway. Decisions, probabilities, model versions, and token usage are saved in `flow.json`.
+
+```json
+[
+  {"name":"initial", "waitFor":"#app-ready"},
+  {"name":"menu-open", "clickIntent":"Open the products menu", "expect":"A menu of products is visible"}
+]
+```
+
+Semantic clicks require both the chosen probability and overall confidence to be at least 0.85. They never generate selectors or JavaScript. Use explicit selectors for consequential actions and never send private page text to a hosted model without authorization.
+
 Each step saves its own DOM, screenshot, and static assets under `states/<name>`. `flow.json` records their order and completion; failed flows retain completed states. Only top-level CSS selectors are supported. Actions are explicit: review the steps before running them on a live site. Supply `waitFor` for a specific post-action state; two paint frames do not establish that a long animation has finished.
 
 For authenticated flows, sign in with `browser open` first, then add `--profile <name>` and give the first step a selector unique to the signed-in page. `--timeout <seconds>` controls each readiness wait. Unnamed flow browsers are closed automatically; named profiles stay open for reuse.

@@ -4,8 +4,9 @@ import { cdpCall, evaluate, pageTargets, holdViewport } from '../cdp';
 import { viewport } from '../visual';
 import { closeBrowser, ensureBrowser, profileDirectory } from './browser';
 import { captureTab } from './capture';
+import { chooseElement, verifyExpectation } from '../jev';
 
-type Step = { name: string; click?: string; hover?: string; scroll?: string; waitFor?: string };
+type Step = { name: string; click?: string; clickIntent?: string; expect?: string; hover?: string; scroll?: string; waitFor?: string };
 
 function readSteps(file: string): Step[] {
   const steps: unknown = JSON.parse(readFileSync(file, 'utf8'));
@@ -13,12 +14,13 @@ function readSteps(file: string): Step[] {
   const names = new Set<string>();
   for (const step of steps) {
     if (!step || typeof step !== 'object' || Array.isArray(step)
-      || Object.keys(step).some(key => !['name', 'click', 'hover', 'scroll', 'waitFor'].includes(key))) throw new Error('Flow steps support only name, click, hover, scroll, and waitFor.');
+      || Object.keys(step).some(key => !['name', 'click', 'clickIntent', 'expect', 'hover', 'scroll', 'waitFor'].includes(key))) throw new Error('Flow steps support only name, click, clickIntent, expect, hover, scroll, and waitFor.');
     if (typeof step.name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(step.name) || names.has(step.name.toLowerCase())) throw new Error('Flow names must be unique and use 1–64 letters, digits, hyphens, or underscores.');
     names.add(step.name.toLowerCase());
-    if (['click', 'hover', 'scroll'].filter(key => key in step).length > 1) throw new Error('Each flow step supports at most one action.');
-    for (const key of ['click', 'hover', 'scroll', 'waitFor']) {
-      if (key in step && (typeof step[key] !== 'string' || !step[key].trim() || step[key].length > 2000)) throw new Error(`${key} must be a nonempty CSS selector of at most 2000 characters.`);
+    if (['click', 'clickIntent', 'hover', 'scroll'].filter(key => key in step).length > 1) throw new Error('Each flow step supports at most one action.');
+    if ('expect' in step && !('clickIntent' in step)) throw new Error('expect requires clickIntent.');
+    for (const key of ['click', 'clickIntent', 'expect', 'hover', 'scroll', 'waitFor']) {
+      if (key in step && (typeof step[key] !== 'string' || !step[key].trim() || step[key].length > 2000)) throw new Error(`${key} must be nonempty and at most 2000 characters.`);
     }
   }
   return steps as Step[];
@@ -88,6 +90,32 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
     if (options.profile) console.log(`Using profile ${name}. Sign in if prompted; waiting up to ${seconds}s for each state.`);
     for (const [i, step] of steps.entries()) {
       await ready(socket, step.click ?? step.hover ?? step.scroll, seconds, signal);
+      if (step.clickIntent) {
+        const observation = await evaluate<{ page: { url: string; title: string; text: string }; candidates: { id: string; role: string; label: string; href?: string }[] }>(socket, `(() => {
+          const visible = element => { const r = element.getBoundingClientRect(), s = getComputedStyle(element); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+          const elements = [...document.querySelectorAll('a[href],button,[role="button"],[role="tab"],[role="menuitem"],summary')].filter(visible).slice(0, 200);
+          globalThis.__webSlurpSemanticElements = elements;
+          return {
+            page: { url: location.href, title: document.title, text: document.body.innerText.slice(0, 6000) },
+            candidates: elements.map((element, index) => ({ id: 'e' + (index + 1), role: element.getAttribute('role') || element.tagName.toLowerCase(), label: (element.innerText || element.getAttribute('aria-label') || element.getAttribute('title') || '').trim().slice(0, 300), href: element.href }))
+          };
+        })()`);
+        const decision = await chooseElement(step.clickIntent, observation.page, observation.candidates, signal);
+        Object.assign(index.steps[i]!, { decision }); save();
+        const probability = decision.probabilities[decision.choice] ?? 0;
+        if (decision.choice === 'none' || decision.confidence < 0.85 || probability < 0.85) throw new Error(`Semantic click was not confident enough (${decision.choice}, confidence ${decision.confidence.toFixed(2)}, probability ${probability.toFixed(2)}); no action was executed.`);
+        const selected = Number(decision.choice.slice(1)) - 1;
+        const point = await evaluate<{ x: number; y: number }>(socket, `(() => {
+          const element = globalThis.__webSlurpSemanticElements?.[${selected}], r = element?.getBoundingClientRect();
+          if (!element?.isConnected || !r || r.width <= 0 || r.height <= 0) throw new Error('Semantic click target became stale');
+          element.scrollIntoView({block:'center',inline:'center',behavior:'instant'});
+          const next = element.getBoundingClientRect(), x = (Math.max(0, next.left) + Math.min(innerWidth, next.right)) / 2, y = (Math.max(0, next.top) + Math.min(innerHeight, next.bottom)) / 2;
+          if (!element.contains(document.elementFromPoint(x, y))) throw new Error('Semantic click target is covered by another element');
+          return {x,y};
+        })()`);
+        await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
+        await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+      }
       const selector = step.click ?? step.hover ?? step.scroll;
       if (selector) {
         signal.throwIfAborted();
@@ -115,6 +143,12 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
       await paint(socket, signal);
       signal.throwIfAborted();
       await captureTab(resolve(target, 'states', step.name), socket, parsed.href, signal);
+      if (step.expect) {
+        const page = await evaluate<{ url: string; title: string; text: string }>(socket, `({ url: location.href, title: document.title, text: document.body.innerText.slice(0, 6000) })`);
+        const verification = await verifyExpectation(step.expect, page, signal);
+        Object.assign(index.steps[i]!, { verification }); save();
+        if (verification.probability < 0.8) throw new Error(`Semantic expectation was not verified (${verification.probability.toFixed(2)}). Captured evidence was preserved.`);
+      }
       index.steps[i]!.complete = true;
       save();
     }

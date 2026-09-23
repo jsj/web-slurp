@@ -48,13 +48,49 @@ test('flow validates names and actions before creating output or browser', async
   const root = mkdtempSync(resolve(tmpdir(), 'web-slurp-flow-validation-'));
   try {
     const steps = resolve(root, 'steps.json'), target = resolve(root, 'capture');
-    for (const invalid of [[{ name: '../escape' }], [{ name: 'one' }, { name: 'ONE' }], [{ name: 'one', eval: 'doSomething()' }], [{ name: 'one', click: '#a', hover: '#b' }]]) {
+    for (const invalid of [[{ name: '../escape' }], [{ name: 'one' }, { name: 'ONE' }], [{ name: 'one', eval: 'doSomething()' }], [{ name: 'one', click: '#a', hover: '#b' }], [{ name: 'one', expect: 'A menu is visible' }]]) {
       writeFileSync(steps, JSON.stringify(invalid));
       await expect(captureFlow('https://example.com', target, steps)).rejects.toThrow();
       expect(existsSync(target)).toBe(false);
     }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('semantic flow chooses a live element, verifies the result, and records evidence', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'web-slurp-semantic-flow-'));
+  const originalFetch = globalThis.fetch;
+  const originalAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const originalToken = process.env.CLOUDFLARE_API_TOKEN;
+  const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response(`<html><body>
+    <button onclick="document.querySelector('#products').hidden=false">Products</button>
+    <button>Account</button><div id="products" hidden>Widgets and Gadgets</div>
+  </body></html>`, { headers: { 'content-type': 'text/html' } }) });
+  try {
+    process.env.CLOUDFLARE_ACCOUNT_ID = 'account';
+    process.env.CLOUDFLARE_API_TOKEN = 'test';
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (!String(_input).startsWith('https://api.cloudflare.com/')) return originalFetch(_input, init);
+      const body = JSON.parse(String(init?.body));
+      return Response.json(body.input.questions.target
+        ? { model: 'jev-test', answers: { target: { type: 'choice', choice: 'e1', confidence: 0.97, probabilities: { e1: 0.97, e2: 0.02, none: 0.01 } } }, usage: { input_tokens: 100, output_tokens: 3 } }
+        : { model: 'jev-test', answers: { satisfied: { type: 'noul', noul: 0.95 } }, usage: { input_tokens: 30, output_tokens: 1 } });
+    }) as unknown as typeof fetch;
+    const steps = resolve(root, 'steps.json');
+    writeFileSync(steps, JSON.stringify([{ name: 'products', clickIntent: 'Open the products menu', expect: 'Widgets and Gadgets are visible' }]));
+    const target = resolve(root, 'capture');
+    await captureFlow(server.url.href, target, steps, { timeout: 10 });
+    const index = JSON.parse(readFileSync(resolve(target, 'flow.json'), 'utf8'));
+    expect(index.complete).toBe(true);
+    expect(index.steps[0]).toMatchObject({ complete: true, decision: { choice: 'e1', model: 'jev-test' }, verification: { probability: 0.95 } });
+    expect(readFileSync(resolve(target, 'states/products/input/page-source/cdp.rendered.html'), 'utf8')).not.toContain('id="products" hidden');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalAccount === undefined) delete process.env.CLOUDFLARE_ACCOUNT_ID; else process.env.CLOUDFLARE_ACCOUNT_ID = originalAccount;
+    if (originalToken === undefined) delete process.env.CLOUDFLARE_API_TOKEN; else process.env.CLOUDFLARE_API_TOKEN = originalToken;
+    server.stop(true);
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 30_000);
 
 test('flow leaves an existing profile and its original tabs intact', async () => {
   const root = mkdtempSync(resolve(tmpdir(), 'web-slurp-flow-profile-'));
