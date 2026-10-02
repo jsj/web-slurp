@@ -1,3 +1,4 @@
+import { captureMotion } from "../motion";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -98,10 +99,10 @@ async function saveCapture(target: string, data: CdpCapture, source: string, req
   console.log(`Captured: ${data.url}\nHTML: ${htmlPath}\nScripts: ${data.scripts.length}\nStylesheets: ${data.stylesheets.length}`);
 }
 
-export async function capture(url: string, targetInput: string, options: { waitFor?: string; waitUntil?: string; profile?: string; readyUrl?: string; authTimeout?: number; viewport?: string; deviceScaleFactor?: number } = {}): Promise<void> {
+export async function capture(url: string, targetInput: string, options: { waitFor?: string; waitUntil?: string; profile?: string; readyUrl?: string; authTimeout?: number; viewport?: string; deviceScaleFactor?: number; motion?: boolean } = {}): Promise<void> {
   const parsed = new URL(url);
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error("Capture URL must use HTTP or HTTPS.");
-  if (options.profile) return captureWithProfile(parsed.href, targetInput, options as { profile: string; waitFor?: string; readyUrl?: string; authTimeout?: number; viewport?: string; deviceScaleFactor?: number });
+  if (options.profile) return captureWithProfile(parsed.href, targetInput, options as { profile: string; waitFor?: string; readyUrl?: string; authTimeout?: number; viewport?: string; deviceScaleFactor?: number; motion?: boolean });
   const size = parseViewport(options.viewport);
   const scale = options.deviceScaleFactor ?? 1;
   if (!Number.isFinite(scale) || scale <= 0 || scale > 4) throw new Error("Device scale factor must be between 0 and 4.");
@@ -128,6 +129,7 @@ export async function capture(url: string, targetInput: string, options: { waitF
     await evaluate(page.webSocketDebuggerUrl, 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
     const data = await evaluate<CdpCapture>(page.webSocketDebuggerUrl, captureExpression);
     await saveCapture(target, data, 'agent-browser', parsed.toString(), page.webSocketDebuggerUrl);
+    if (options.motion) await captureMotion(target, page.webSocketDebuggerUrl);
   } finally {
     releaseViewport?.();
     try {
@@ -174,7 +176,7 @@ export async function captureTab(targetInput: string, websocketUrl: string, requ
   } finally { release(); }
 }
 
-export async function captureCdp(targetInput: string, pageUrl: string | undefined, cdp: string): Promise<void> {
+export async function captureCdp(targetInput: string, pageUrl: string | undefined, cdp: string, motion = false): Promise<void> {
   const target = absolute(targetInput);
   const release = beginCapture(target);
   try {
@@ -185,10 +187,11 @@ export async function captureCdp(targetInput: string, pageUrl: string | undefine
     const page = matches[0]!;
     const data = await evaluate<CdpCapture>(page.webSocketDebuggerUrl!, captureExpression);
     await saveCapture(target, data, 'chrome-cdp', pageUrl, page.webSocketDebuggerUrl!);
+    if (motion) await captureMotion(target, page.webSocketDebuggerUrl!);
   } finally { release(); }
 }
 
-export async function captureWithProfile(url: string, targetInput: string, options: { profile: string; waitFor?: string; readyUrl?: string; authTimeout?: number; viewport?: string; deviceScaleFactor?: number }): Promise<void> {
+export async function captureWithProfile(url: string, targetInput: string, options: { profile: string; waitFor?: string; readyUrl?: string; authTimeout?: number; viewport?: string; deviceScaleFactor?: number; motion?: boolean }): Promise<void> {
   if (!options.waitFor) throw new Error('Profile capture requires --wait-for <selector> identifying the signed-in page.');
   const expected = new URL(options.readyUrl ?? url);
   if (!['http:', 'https:'].includes(expected.protocol)) throw new Error('Ready URL must use HTTP or HTTPS.');
@@ -230,6 +233,7 @@ export async function captureWithProfile(url: string, targetInput: string, optio
       }
         if (data) {
           await saveCapture(target, data, 'chrome-cdp', url, page.webSocketDebuggerUrl);
+          if (options.motion) await captureMotion(target, page.webSocketDebuggerUrl);
           console.log(`Chrome remains open. Close it with: web-slurp browser close --profile ${options.profile}`);
           return;
         }

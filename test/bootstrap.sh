@@ -18,7 +18,11 @@ cd "$slurp_test"
 env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" init "$slurp_test/capture"
 printf '%s\n' '<!doctype html><html><head><style>body { color: red; }</style></head><body>Fixture</body></html>' > "$slurp_test/capture/input/page-source/fixture.html"
 env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" styles "$slurp_test/capture"
+printf '%s\n' 'export const greeting = "recovered";' > "$slurp_test/input.js"
+env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" recover "$slurp_test/input.js" --out "$slurp_test/recovered" --mode file
+[ -f "$slurp_test/recovered/modules/recovered.js" ]
+[ -f "$slurp_test/recovered/module-index.json" ]
 env PATH=/usr/bin:/bin "$slurp_test/bin/web-slurp" uninstall \
   --skills-dir "$slurp_test/skills" --bin-dir "$slurp_test/bin"
 [ ! -L "$slurp_test/bin/web-slurp" ]
-echo 'Clean bootstrap, repeat setup, Python command, and uninstall passed.'
+echo 'Clean bootstrap, repeat setup, Python command, Wakaru recovery, and uninstall passed.'

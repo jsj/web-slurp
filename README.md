@@ -50,7 +50,11 @@ web-slurp serve ./targets/example
 Each capture saves the page HTML, a screenshot, and the loaded scripts, styles, images, and fonts.
 Local replay does not reproduce live APIs.
 
+Add `--motion` to `capture` or `capture-cdp` to save animation timing, keyframes, hover CSS rules, exposed GSAP/ScrollTrigger settings, and sampled inline-style changes under `input/motion/runtime.json`. The opt-in scroll sweep distinguishes repeatable scroll candidates from timer-driven or unsettled changes; it records evidence, not a verified interaction clone.
+
 Profiles keep your login. You can also capture mobile layouts and interactions, then compare your frontend with a screenshot reference.
+
+Recover readable modules and React JSX from captured bundles with `web-slurp recover ./raw --out ./output/recovery`. Recovery uses Wakaru locally, extracts original files from available source maps, and writes an import index and provenance alongside preserved inputs. See [bundle inspection](references/usage.md#bundle-inspection) for formats and limits.
 
 [Full guide](references/usage.md) · [Login and troubleshooting](references/capture-troubleshooting.md) · [Agent skill](SKILL.md)
 

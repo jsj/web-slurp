@@ -10,9 +10,11 @@
     "start": "bun run src/cli.ts",
     "check": "tsc --noEmit",
     "test": "bun test",
+    "benchmark:recovery": "bun run test/benchmark-recovery.ts",
     "prepack": "cp bun.lock dependencies.lock"
   },
   "dependencies": {
+    "@babel/parser": "7.28.4",
     "agent-browser": "latest",
     "commander": "^14.0.0",
     "js-beautify": "2.0.3",
@@ -20,11 +22,17 @@
     "pngjs": "7.0.0"
   },
   "devDependencies": {
+    "@rspack/core": "2.2.8",
     "@types/bun": "latest",
     "@types/js-beautify": "1.14.3",
     "@types/pixelmatch": "5.2.6",
     "@types/pngjs": "6.0.5",
-    "typescript": "^5.9.0"
+    "esbuild": "0.25.10",
+    "rollup": "4.52.2",
+    "svelte": "5.39.6",
+    "typescript": "^5.9.0",
+    "vite": "8.3.2",
+    "webpack": "5.111.1"
   },
   "description": "Capture rendered websites, inspect their assets, and replay local references.",
   "files": [
@@ -48,5 +56,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jsj/web-slurp.git"
+  },
+  "optionalDependencies": {
+    "@wakaru/cli": "1.13.0"
   }
 }

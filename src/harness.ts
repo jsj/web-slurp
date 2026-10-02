@@ -59,8 +59,9 @@ export function run(command: string, args: string[], env?: NodeJS.ProcessEnv): v
   }
 }
 
-export function detectFormat(path: string): BundleFormat {
+export function detectFormat(path: string): BundleFormat | undefined {
   const sample = readFileSync(path, "utf8").slice(0, 2_000_000);
-  const turbopackMarkers = ["TURBOPACK", "__turbopack", "turbopackContext", ".push([\""];
-  return turbopackMarkers.some((marker) => sample.includes(marker)) ? "turbopack" : "webpack";
+  if (/\b(?:TURBOPACK|__turbopack\w*|turbopackContext)\b/.test(sample)) return "turbopack";
+  if (/\b(?:webpackChunk\w*|webpackJsonp\w*|__webpack_require__|__webpack_modules__)\b/.test(sample)) return "webpack";
+  return undefined;
 }

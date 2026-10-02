@@ -60,6 +60,13 @@ test('capture discovers imports, waits for the page, and preserves evidence', as
   expect(result.code).toBe(0);
   const scripts = readFileSync(resolve(target, 'input/bundles/script-urls.txt'), 'utf8');
   expect(scripts).toContain('/dynamic.js');
+  const recovery = resolve(target, 'output/recovery');
+  const recovered = await cli(['recover', target, '--out', recovery, '--level', 'minimal']);
+  expect(recovered.code).toBe(0);
+  expect(recovered.stderr).toBe('');
+  const index = JSON.parse(readFileSync(resolve(recovery, 'module-index.json'), 'utf8'));
+  const app = index.modules.find((module: { file: string }) => module.file.split('/').at(-1) === 'app.js');
+  expect(app.imports.find((edge: { specifier: string }) => edge.specifier === '/dynamic.js').resolution).toBe('internal');
   const htmlPath = resolve(target, 'input/page-source/codex.rendered.html');
   const before = readFileSync(htmlPath, 'utf8');
   expect(before).toContain('id="ready"');

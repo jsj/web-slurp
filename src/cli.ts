@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import packageJson from "../package.json";
 import { Command, Option } from "commander";
 import { beautify, chunks, rename, split } from "./commands/bundles";
+import { recover, RecoveryOptions } from "./commands/recover";
 import { capture, captureCdp, captureResponsive, compare, download } from "./commands/capture";
 import { browserStatus, openBrowser, closeBrowser } from "./commands/browser";
 import { captureFlow } from "./commands/flow";
@@ -58,6 +59,7 @@ program.command("capture")
   .option("--out <path>", "Target artifact directory")
   .option("--viewport <size>", "Viewport WIDTHxHEIGHT", "1440x900")
   .option("--device-scale-factor <number>", "Screenshot pixel density", Number, 1)
+  .option("--motion", "Capture motion evidence with a scroll sweep", false)
   .option("--wait-for <selector>", "Wait for a visible element before capturing")
   .option("--profile <name>", "Use a persistent visible Chrome profile; requires --wait-for")
   .option("--ready-url <url>", "Expected signed-in URL if it differs from the requested URL")
@@ -93,9 +95,10 @@ program.command('flow').description('Capture named interaction states from an ex
 program.command("capture-cdp")
   .description("Capture the rendered page and static asset URLs from an authorized Chrome CDP session")
   .argument("<target>", "Target artifact directory")
+  .option("--motion", "Capture motion evidence with a scroll sweep", false)
   .option("--page-url <url>", "Exact or prefix URL of the Chrome page to capture")
   .option("--cdp <url>", "Chrome DevTools endpoint", "http://127.0.0.1:9222")
-  .action((target: string, options: { pageUrl?: string; cdp: string }) => captureCdp(target, options.pageUrl, options.cdp));
+  .action((target: string, options: { pageUrl?: string; cdp: string; motion: boolean }) => captureCdp(target, options.pageUrl, options.cdp, options.motion));
 
 program.command("download")
   .description("Download a URL list through an authorized Chrome CDP session")
@@ -126,6 +129,16 @@ program.command("rename")
   .option("--yes", "Apply names without confirmation", false)
   .option("--heuristic-only", "Keep naming deterministic and local", false)
   .action((modules: string, options: { yes: boolean; heuristicOnly: boolean }) => rename(modules, options));
+
+program.command("recover")
+  .description("Recover readable modules, JSX, local source maps, and an import index with Wakaru")
+  .argument("<inputs...>", "Capture targets, JavaScript files, or directories of chunks")
+  .requiredOption("--out <path>", "Fresh recovery directory; inputs are copied and preserved")
+  .addOption(new Option("--mode <mode>", "Auto recovery, structural-only, static inspection, or single-file rewriting").choices(["auto", "strict", "inspect", "file"]).default("auto"))
+  .addOption(new Option("--level <level>", "Rewrite aggressiveness").choices(["minimal", "standard", "aggressive"]).default("standard"))
+  .option("--raw", "Extract modules without readability transforms", false)
+  .option("--source-map <path>", "Explicit local input map (one input with --mode file)")
+  .action((inputs: string[], options: RecoveryOptions) => recover(inputs, options));
 
 program.command("chunks")
   .description("List or download lazy webpack chunks from a runtime map")

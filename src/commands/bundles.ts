@@ -16,6 +16,9 @@ export function split(inputPath: string, outdirPath: string, requested: BundleFo
   const outdir = absolute(outdirPath);
   requireFile(input);
   const format = requested === "auto" ? detectFormat(input) : requested;
+  if (!format) {
+    throw new Error("Bundle format not recognized. Input preserved; no modules written. Use recover <input> --out <new-directory> for broader bundle recovery, or choose --format webpack or --format turbopack for a known wrapper.");
+  }
   console.log(`Detected format: ${format}`);
   const splitter = format === "turbopack" ? "split_modules_turbopack.py" : "split_modules.py";
   run("python3", [harnessScript(splitter), input, outdir]);

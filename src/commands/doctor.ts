@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { agentBrowserCli, agentBrowserEnv } from "../agent-browser";
 import { findHarness, pythonExecutable } from "../harness";
+import { wakaruCommand } from "./recover";
 
 function executable(name: string): string | null {
   return Bun.which(name);
@@ -23,6 +24,14 @@ export async function doctor(cdp: string, options: { skipBrowser?: boolean; requ
   const websocket = spawnSync(pythonExecutable(), ["-c", "import websocket"], { stdio: "ignore" }).status === 0;
   console.log(`${websocket ? "OK" : options.requireCdp ? "MISSING" : "OPTIONAL"} python websocket-client`);
   failed ||= Boolean(options.requireCdp && !websocket);
+
+  try {
+    const [command, ...args] = wakaruCommand();
+    const recovery = spawnSync(command!, [...args, "--version"], { encoding: "utf8", timeout: 10_000 });
+    console.log(`${recovery.status === 0 ? "OK" : "OPTIONAL"} wakaru: ${recovery.status === 0 ? recovery.stdout.trim() : "unavailable; recover needs Wakaru"}`);
+  } catch {
+    console.log("OPTIONAL wakaru: unavailable; recover needs Wakaru");
+  }
 
   const browserRuntime = options.skipBrowser || spawnSync("bun", [agentBrowserCli, "doctor", "--offline", "--json"], {
     env: agentBrowserEnv(),
