@@ -90,7 +90,7 @@ test('flow CLI cancellation preserves completed states and cleans only temporary
     for (const named of [false, true]) {
       const target = resolve(root, named ? 'persistent' : 'temporary');
       const profiles = resolve(root, 'profiles');
-      const child = Bun.spawn(['bun', resolve(import.meta.dir, '../src/cli.ts'), 'flow', server.url.href, '--out', target, '--steps', steps, '--timeout', '30', ...(named ? ['--profile', name] : [])], {
+      const child = Bun.spawn(['bun', resolve(import.meta.dir, '../src/cli.ts'), 'flow', server.url.href, '--out', target, '--steps', steps, '--timeout', '30', '--record', ...(named ? ['--profile', name] : [])], {
         stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(named ? {} : { WEB_SLURP_PROFILE_ROOT: profiles }) },
       });
       const stdout = new Response(child.stdout).text(), stderr = new Response(child.stderr).text();
@@ -112,6 +112,9 @@ test('flow CLI cancellation preserves completed states and cleans only temporary
         expect(index.complete).toBe(false);
         expect(index.steps.map((step: { complete: boolean }) => step.complete)).toEqual([true, false]);
         expect(existsSync(resolve(target, 'states/first/input/page-source/page.png'))).toBe(true);
+        const recording = JSON.parse(readFileSync(resolve(target, 'input/recording/events.json'), 'utf8'));
+        expect(recording.status).toBe('partial');
+        expect(recording.events.some((event: { type: number }) => event.type === 2)).toBe(true);
         if (named) expect((await browserStatus(name))?.websocketUrl).toBe(persistent.websocketUrl);
         else expect(readdirSync(profiles)).toEqual([]);
       } finally {

@@ -52,9 +52,13 @@ Local replay does not reproduce live APIs.
 
 Add `--motion` to `capture` or `capture-cdp` to save animation timing, keyframes, hover CSS rules, exposed GSAP/ScrollTrigger settings, and sampled inline-style changes under `input/motion/runtime.json`. The opt-in scroll sweep distinguishes repeatable scroll candidates from timer-driven or unsettled changes; it records evidence, not a verified interaction clone.
 
+Add `--layout` or `--layout '#app'` to capture rendered geometry, computed styles, and matched/inherited CSS rules with stylesheet URLs. For interaction walkthroughs, `flow --record` saves rrweb snapshots and mutations across navigation. Steps can use exact accessible role/name locators when a CSS selector changes. See the [walkthrough guide](references/usage.md#capture-an-interaction-walkthrough) for examples and limits.
+
 Profiles keep your login. You can also capture mobile layouts and interactions, then compare your frontend with a screenshot reference.
 
 Recover readable modules and React JSX from captured bundles with `web-slurp recover ./raw --out ./output/recovery`. Recovery uses Wakaru locally, extracts original files from available source maps, and writes an import index and provenance alongside preserved inputs. See [bundle inspection](references/usage.md#bundle-inspection) for formats and limits.
+
+An optional installed webcrack CLI provides another recovery engine: add `--engine webcrack`. It requires Node 22/24; normal captures and Wakaru recovery continue to use Bun.
 
 [Full guide](references/usage.md) · [Login and troubleshooting](references/capture-troubleshooting.md) · [Agent skill](SKILL.md)
 

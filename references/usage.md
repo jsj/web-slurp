@@ -128,7 +128,19 @@ Create `steps.json`:
 web-slurp flow https://example.com --steps steps.json --out ./targets/example-flow
 ```
 
-Each step saves its own DOM, screenshot, and static assets under `states/<name>`. `flow.json` records their order and completion; failed flows retain completed states. Only top-level CSS selectors are supported. Actions are explicit: review the steps before running them on a live site. Supply `waitFor` for a specific post-action state; two paint frames do not establish that a long animation has finished.
+Each step saves its own DOM, screenshot, and static assets under `states/<name>`. `flow.json` records their order and completion; failed flows retain completed states. Actions are explicit: review the steps before running them on a live site. Supply `waitFor` for a specific post-action state; two paint frames do not establish that a long animation has finished.
+
+Selectors must identify a single element in the main document. You can instead use an exact accessible role/name locator for `click`, `hover`, `scroll`, or `waitFor`:
+
+```json
+{"name":"menu-open", "click":{"css":"#old-menu-id", "role":"button", "name":"Open menu"}, "waitFor":"#menu-panel"}
+```
+
+If the optional CSS selector is missing, the current Chrome accessibility tree supplies the role/name fallback. Names use normalized whitespace and remain case-sensitive. Every action resolves the current DOM again; ambiguous matches fail before the action. `flow.json` records how each action target was resolved. Frame and shadow-root traversal are not supported by these locators. This adopts the semantic targeting idea from [Stagehand](https://github.com/browserbase/stagehand) without requiring its AI service.
+
+Add `--record` to retain an [rrweb](https://github.com/rrweb-io/rrweb) event stream under `input/recording/events.json`. It contains full DOM snapshots, incremental mutations and interactions, document boundaries, and its own completion status. Navigation preserves the earlier document's events; a failed flow preserves its buffered events. Input values are masked in the recording, but ordinary HTML captures are separate and retain their existing behavior. Recordings stop at 10,000 events or 8 MiB with a warning; canvas recording is disabled. The raw `events` array can be supplied to an rrweb replayer; slurp's static `serve` command does not play it.
+
+Add `--layout [selector]` to `capture`, `capture-cdp`, or `flow` for `input/layout/layout.json` (inside each state for a flow). The default root is `body`. It measures up to 200 visible elements and samples matched/inherited CSS rules for the first 20, retaining computed properties, viewport/document rectangles, stylesheet URLs and source ranges where Chrome exposes them. This uses the same CDP CSS evidence as [Chrome DevTools](https://github.com/ChromeDevTools/devtools-frontend). Matched rules are cascade candidates, not an explanation of which declaration wins. Measurement covers the main document; iframe and shadow-root traversal are omitted. Inspect status and warnings before using the evidence.
 
 For authenticated flows, sign in with `browser open` first, then add `--profile <name>` and give the first step a selector unique to the signed-in page. `--timeout <seconds>` controls each readiness wait. Unnamed flow browsers are closed automatically; named profiles stay open for reuse.
 
@@ -159,7 +171,17 @@ web-slurp recover ./raw --out ./output/raw --raw
 web-slurp recover ./app.js --out ./output/file --mode file --source-map ./app.js.map
 ```
 
-Malformed input or error-class diagnostics fail the command and preserve partial artifacts and `recovery.json`. A malformed automatically discovered map is recorded as a warning and does not prevent JavaScript recovery. Missing captured dependencies remain visible in the index. Inputs are never executed by recovery. JSX reconstruction does not imply original component names or a recovered project; compiled Svelte is readable JavaScript unless a source map embeds the original `.svelte` files.
+Malformed input or error-class diagnostics fail the command and preserve partial artifacts and `recovery.json`. A malformed automatically discovered map is recorded as a warning and does not prevent JavaScript recovery. Missing captured dependencies remain visible in the index. Wakaru recovery does not execute inputs. JSX reconstruction does not imply original component names or a recovered project; compiled Svelte is readable JavaScript unless a source map embeds the original `.svelte` files.
+
+For an alternative deobfuscation and unpacking engine, install [webcrack](https://github.com/j4k0xb/webcrack) with its supported Node 22/24 runtime, then run:
+
+```bash
+web-slurp recover ./raw --engine webcrack --out ./output/webcrack
+# If its executable is outside PATH:
+WEB_SLURP_WEBCRACK=/absolute/path/to/webcrack web-slurp recover ./app.js --engine webcrack --mode file --out ./output/webcrack-file
+```
+
+The adapter was verified against webcrack 2.16.0. It preserves hashed inputs, groups output under `modules/<input-number>/`, and writes `module-index.json` plus per-input logs and provenance in `recovery.json`. It supports modes `auto` and `file`, the standard rewrite level, and `--raw`; source-map extraction, other modes/levels and cross-chunk URL linking remain Wakaru features. `file` disables unpacking. webcrack's own deobfuscator can evaluate isolated decoder expressions; use Wakaru for static recovery without that evaluation. webcrack is an optional external executable, not required for ordinary captures or the default engine.
 
 Wakaru's npm binary supports macOS ARM64 and Linux ARM64/x64. On other platforms, set `WEB_SLURP_WAKARU` to a compatible installed executable. `doctor` reports its availability; capture and the bundled splitters work without it.
 

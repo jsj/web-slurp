@@ -1,3 +1,5 @@
+import { recordFlow } from '../recording';
+import { flowTarget, validFlowTarget, type FlowTarget } from '../flow-target';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cdpCall, evaluate, pageTargets, holdViewport } from '../cdp';
@@ -5,7 +7,7 @@ import { viewport } from '../visual';
 import { closeBrowser, ensureBrowser, profileDirectory } from './browser';
 import { captureTab } from './capture';
 
-type Step = { name: string; click?: string; hover?: string; scroll?: string; waitFor?: string };
+type Step = { name: string; click?: FlowTarget; hover?: FlowTarget; scroll?: FlowTarget; waitFor?: FlowTarget };
 
 function readSteps(file: string): Step[] {
   const steps: unknown = JSON.parse(readFileSync(file, 'utf8'));
@@ -18,28 +20,25 @@ function readSteps(file: string): Step[] {
     names.add(step.name.toLowerCase());
     if (['click', 'hover', 'scroll'].filter(key => key in step).length > 1) throw new Error('Each flow step supports at most one action.');
     for (const key of ['click', 'hover', 'scroll', 'waitFor']) {
-      if (key in step && (typeof step[key] !== 'string' || !step[key].trim() || step[key].length > 2000)) throw new Error(`${key} must be a nonempty CSS selector of at most 2000 characters.`);
+      if (key in step && !validFlowTarget(step[key])) throw new Error(`${key} must be a CSS selector or an exact {role,name,css?} locator.`);
     }
   }
   return steps as Step[];
 }
 
-async function ready(socket: string, selector: string | undefined, seconds: number, signal: AbortSignal): Promise<void> {
+async function ready(socket: string, selector: FlowTarget | undefined, seconds: number, signal: AbortSignal): Promise<void> {
   const deadline = Date.now() + seconds * 1000;
   while (Date.now() < deadline) {
     signal.throwIfAborted();
     try {
-      if (await evaluate<boolean>(socket, `(() => {
-        if (document.readyState !== 'complete' || !/^https?:$/.test(location.protocol)) return false;
-        const element = ${selector ? `document.querySelector(${JSON.stringify(selector)})` : 'document.documentElement'};
-        return Boolean(element && element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
-      })()`)) return;
+      const loaded = await evaluate<boolean>(socket, "document.readyState === 'complete' && /^https?:$/.test(location.protocol)");
+      if (loaded && (!selector || await flowTarget(socket, selector))) return;
     } catch (error) {
       if (!(error instanceof Error) || !/Execution context was destroyed|Cannot find (?:default execution )?context|Inspected target navigated/i.test(error.message)) throw error;
     }
     await Bun.sleep(100);
   }
-  throw new Error(`Flow readiness timed out waiting for ${selector ?? 'page load'}. Completed states were preserved.`);
+  throw new Error(`Flow readiness timed out waiting for ${typeof selector === 'object' ? JSON.stringify(selector) : selector ?? 'page load'}. Completed states were preserved.`);
 }
 
 async function paint(socket: string, signal: AbortSignal): Promise<void> {
@@ -47,7 +46,7 @@ async function paint(socket: string, signal: AbortSignal): Promise<void> {
   await evaluate(socket, 'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
 }
 
-export async function captureFlow(url: string, targetInput: string, stepsFile: string, options: { profile?: string; viewport?: string; timeout?: number } = {}): Promise<void> {
+export async function captureFlow(url: string, targetInput: string, stepsFile: string, options: { profile?: string; viewport?: string; timeout?: number; layout?: string | boolean; record?: boolean } = {}): Promise<void> {
   const parsed = new URL(url);
   if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Flow URL must use HTTP or HTTPS.');
   const steps = readSteps(stepsFile);
@@ -61,7 +60,7 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
   mkdirSync(target, { recursive: true });
   // Exclusive creation reserves the output before any browser action.
   const indexPath = resolve(target, 'flow.json');
-  const index = { url: parsed.href, viewport: size, complete: false, steps: steps.map(step => ({ ...step, path: `states/${step.name}`, complete: false })) };
+  const index = { recording: options.record ? 'input/recording/events.json' : undefined, url: parsed.href, viewport: size, complete: false, steps: steps.map(step => ({ ...step, path: `states/${step.name}`, complete: false, resolvedTarget: undefined as Awaited<ReturnType<typeof flowTarget>> | undefined })) };
   writeFileSync(indexPath, JSON.stringify(index, null, 2) + '\n', { flag: 'wx' });
   const save = () => writeFileSync(indexPath, JSON.stringify(index, null, 2) + '\n');
   const controller = new AbortController();
@@ -84,42 +83,40 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
     signal.throwIfAborted();
     releaseViewport = await holdViewport(socket, size.width, size.height, 1);
     signal.throwIfAborted();
-    await cdpCall(socket, 'Page.navigate', { url: parsed.href });
-    if (options.profile) console.log(`Using profile ${name}. Sign in if prompted; waiting up to ${seconds}s for each state.`);
-    for (const [i, step] of steps.entries()) {
-      await ready(socket, step.click ?? step.hover ?? step.scroll, seconds, signal);
-      const selector = step.click ?? step.hover ?? step.scroll;
-      if (selector) {
-        signal.throwIfAborted();
-        await evaluate(socket, `(() => { document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'center',inline:'center',behavior:'instant'}); return true; })()`);
-        await paint(socket, signal);
-        if (!step.scroll) {
-          const point = await evaluate<{ x: number; y: number }>(socket, `(() => {
-            const element = document.querySelector(${JSON.stringify(selector)}), r = element.getBoundingClientRect();
-            const x = (Math.max(0, r.left) + Math.min(innerWidth, r.right)) / 2;
-            const y = (Math.max(0, r.top) + Math.min(innerHeight, r.bottom)) / 2;
-            if (!element.contains(document.elementFromPoint(x, y))) throw new Error('Flow action target is covered by another element');
-            return {x,y};
-          })()`);
+    const run = async (checkpoint: () => void) => {
+      await cdpCall(socket, 'Page.navigate', { url: parsed.href });
+      if (options.profile) console.log(`Using profile ${name}. Sign in if prompted; waiting up to ${seconds}s for each state.`);
+      for (const [i, step] of steps.entries()) {
+        await ready(socket, step.click ?? step.hover ?? step.scroll, seconds, signal);
+        const selector = step.click ?? step.hover ?? step.scroll;
+        if (selector) {
           signal.throwIfAborted();
-          await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
-          if (step.click) {
+          const point = await flowTarget(socket, selector, step.scroll ? "scroll" : "pointer");
+          if (!point) throw new Error('Flow target disappeared before the action. Completed states were preserved.');
+          index.steps[i]!.resolvedTarget = point;
+          if (!step.scroll) {
             signal.throwIfAborted();
-            await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point });
-            signal.throwIfAborted();
-            await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point });
+            await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
+            if (step.click) {
+              signal.throwIfAborted();
+              await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, x: point.x, y: point.y });
+              signal.throwIfAborted();
+              await cdpCall(socket, 'Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, x: point.x, y: point.y });
+            }
           }
         }
+        await ready(socket, step.waitFor, seconds, signal);
+        await paint(socket, signal);
+        signal.throwIfAborted();
+        await captureTab(resolve(target, 'states', step.name), socket, parsed.href, signal, { layout: options.layout });
+        index.steps[i]!.complete = true;
+        save(); checkpoint();
       }
-      await ready(socket, step.waitFor, seconds, signal);
-      await paint(socket, signal);
-      signal.throwIfAborted();
-      await captureTab(resolve(target, 'states', step.name), socket, parsed.href, signal);
-      index.steps[i]!.complete = true;
+      index.complete = true;
       save();
-    }
-    index.complete = true;
-    save();
+    };
+    if (options.record) await recordFlow(socket, target, run);
+    else await run(() => {});
   } finally {
     releaseViewport?.();
     try {

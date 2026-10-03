@@ -66,3 +66,39 @@ export async function holdViewport(websocketUrl: string, width: number, height: 
     socket.addEventListener('close', () => { clearTimeout(timer); reject(new Error('Viewport connection closed.')); });
   });
 }
+
+// DOM node IDs and CSS stylesheet IDs belong to one DevTools session.
+// Keep that connection open while collecting matched rules and source URLs.
+export async function withCdpSession<T>(url: string, use: (call: <R>(method: string, params?: Record<string, unknown>) => Promise<R>) => Promise<T>, onEvent?: (method: string, params: any) => void): Promise<T> {
+  const socket = new WebSocket(url);
+  let nextId = 0;
+  const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  const fail = (message: string) => {
+    for (const request of pending.values()) { clearTimeout(request.timer); request.reject(new Error(message)); }
+    pending.clear();
+  };
+  socket.addEventListener('message', event => {
+    const message = JSON.parse(String(event.data));
+    if (message.method) onEvent?.(message.method, message.params);
+    const request = pending.get(message.id);
+    if (!request) return;
+    pending.delete(message.id); clearTimeout(request.timer);
+    if (message.error) request.reject(new Error(`CDP: ${message.error.message}`));
+    else request.resolve(message.result);
+  });
+  socket.addEventListener('close', () => fail('CDP session closed.'));
+  socket.addEventListener('error', () => fail('CDP session failed.'));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('CDP session connection timed out.')), 15_000);
+      socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
+      socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('CDP session connection failed.')); }, { once: true });
+    });
+    return await use(<R>(method: string, params: Record<string, unknown> = {}) => new Promise<R>((resolve, reject) => {
+      const id = ++nextId;
+      const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timed out: ${method}`)); }, 15_000);
+      pending.set(id, { resolve, reject, timer });
+      socket.send(JSON.stringify({ id, method, params }));
+    }));
+  } finally { fail('CDP session finished.'); socket.close(); }
+}

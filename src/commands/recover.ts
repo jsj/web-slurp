@@ -1,3 +1,4 @@
+import { recoverWebcrack } from '../webcrack-recovery';
 import { spawnSync } from "node:child_process";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, extname, isAbsolute, relative, resolve } from "node:path";
@@ -5,7 +6,7 @@ import { absolute, requireFile } from "../harness";
 import { javascriptFiles, moduleIndex, sha256 } from "../module-index";
 
 export type RecoveryOptions = {
-  out: string; mode: "auto" | "strict" | "inspect" | "file";
+  engine?: "wakaru" | "webcrack"; out: string; mode: "auto" | "strict" | "inspect" | "file";
   level: "minimal" | "standard" | "aggressive"; raw?: boolean; sourceMap?: string;
 };
 
@@ -98,6 +99,7 @@ export function recover(inputPaths: string[], options: RecoveryOptions): void {
     requireFile(input.original);
     if (!lstatSync(input.original).isFile()) throw new Error(`Input is not a file: ${input.original}`);
   }
+  if (options.engine === 'webcrack') return recoverWebcrack(inputs, options, warnings);
   const out = absolute(options.out);
   if (existsSync(out)) throw new Error(`Recovery output already exists: ${out}. Choose a fresh directory.`);
   const command = wakaruCommand();
