@@ -6,6 +6,7 @@ import { cdpCall, evaluate, pageTargets, holdViewport } from '../cdp';
 import { viewport } from '../visual';
 import { closeBrowser, ensureBrowser, profileDirectory } from './browser';
 import { captureTab } from './capture';
+import { observeFlow } from '../flow-events';
 
 type Step = { name: string; click?: FlowTarget; hover?: FlowTarget; scroll?: FlowTarget; waitFor?: FlowTarget };
 
@@ -69,6 +70,7 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
   const terminate = () => { process.exitCode = 143; controller.abort(new Error('Flow terminated. Completed states were preserved.')); };
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', terminate);
+  let observer: Awaited<ReturnType<typeof observeFlow>> | undefined;
   let browserStarted = false;
   let releaseViewport: (() => void) | undefined;
   try {
@@ -83,10 +85,12 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
     signal.throwIfAborted();
     releaseViewport = await holdViewport(socket, size.width, size.height, 1);
     signal.throwIfAborted();
+    observer = await observeFlow(socket);
     const run = async (checkpoint: () => void) => {
       await cdpCall(socket, 'Page.navigate', { url: parsed.href });
       if (options.profile) console.log(`Using profile ${name}. Sign in if prompted; waiting up to ${seconds}s for each state.`);
       for (const [i, step] of steps.entries()) {
+        observer!.setStep(i);
         await ready(socket, step.click ?? step.hover ?? step.scroll, seconds, signal);
         const selector = step.click ?? step.hover ?? step.scroll;
         if (selector) {
@@ -109,6 +113,7 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
         await paint(socket, signal);
         signal.throwIfAborted();
         await captureTab(resolve(target, 'states', step.name), socket, parsed.href, signal, { layout: options.layout });
+        writeFileSync(resolve(target, 'events.json'), JSON.stringify(observer!.log, null, 2) + '\n');
         index.steps[i]!.complete = true;
         save(); checkpoint();
       }
@@ -118,6 +123,10 @@ export async function captureFlow(url: string, targetInput: string, stepsFile: s
     if (options.record) await recordFlow(socket, target, run);
     else await run(() => {});
   } finally {
+    if (observer) {
+      observer.stop();
+      writeFileSync(resolve(target, 'events.json'), JSON.stringify(observer.log, null, 2) + '\n');
+    }
     releaseViewport?.();
     try {
       if (!options.profile && browserStarted) {

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { compareFlows } from '../src/commands/compare-flow';
 import { captureFlow } from '../src/commands/flow';
 import { browserStatus, closeBrowser, ensureBrowser, profileDirectory } from '../src/commands/browser';
 import { pageTargets } from '../src/cdp';
@@ -12,7 +13,7 @@ test('flow captures ordered dropdown, hover, and scroll states and preserves par
     return new Response(`<html><head><style>
       #panel { background: red; width: 200px; height: 100px; } #card { width: 200px; height: 80px; background: blue; }
       #card:hover { background: green; } #bottom { margin-top: 1500px; }
-      </style></head><body><button id="menu" onclick="document.querySelector('#panel').hidden=false">Menu</button>
+      </style></head><body><button id="menu" onclick="document.querySelector('#panel').hidden=false; console.warn('private-console-token'); fetch('/data?token=private-query-token')">Menu</button>
       <div id="panel" hidden>Dropdown content</div><div id="card" onmouseenter="this.dataset.hovered='yes'">Hover</div><div id="bottom">Bottom</div></body></html>`, { headers: { 'content-type': 'text/html' } });
   } });
   try {
@@ -32,6 +33,17 @@ test('flow captures ordered dropdown, hover, and scroll states and preserves par
     expect(png('menu').equals(png('hover'))).toBe(false);
     expect(png('hover').equals(png('bottom'))).toBe(false);
     for (const step of index.steps) expect(existsSync(resolve(target, step.path, 'input/assets/manifest.json'))).toBe(true);
+    const eventsText = readFileSync(resolve(target, 'events.json'), 'utf8');
+    const events = JSON.parse(eventsText);
+    expect(events.coverage).toBe('complete');
+    expect(events.events).toContainEqual({ step: 1, kind: 'console', level: 'warning' });
+    expect(events.events.some((event: any) => event.step === 1 && event.kind === 'request' && event.url.endsWith('/data'))).toBe(true);
+    expect(eventsText).not.toContain('private-console-token');
+    expect(eventsText).not.toContain('private-query-token');
+    const same = compareFlows(target, target, resolve(root, 'same'));
+    expect(same.status).toBe('unchanged');
+    expect(same.firstDivergentStep).toBe(null);
+    await expect(captureFlow(server.url.href, target, steps)).rejects.toThrow('already exists');
     const before = readFileSync(resolve(target, 'flow.json'), 'utf8');
     await expect(captureFlow(server.url.href, target, steps)).rejects.toThrow('already exists');
     expect(readFileSync(resolve(target, 'flow.json'), 'utf8')).toBe(before);
@@ -41,6 +53,8 @@ test('flow captures ordered dropdown, hover, and scroll states and preserves par
     const incomplete = JSON.parse(readFileSync(resolve(partial, 'flow.json'), 'utf8'));
     expect(incomplete.complete).toBe(false);
     expect(incomplete.steps.map((step: { complete: boolean }) => step.complete)).toEqual([true, false]);
+    expect(existsSync(resolve(partial, 'events.json'))).toBe(true);
+    expect(compareFlows(partial, partial, resolve(root, 'partial-comparison')).status).toBe('unknown');
   } finally { server.stop(true); rmSync(root, { recursive: true, force: true }); }
 }, 60_000);
 

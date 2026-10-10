@@ -8,6 +8,7 @@ import { beautify, chunks, rename, split } from "./commands/bundles";
 import { recover, RecoveryOptions } from "./commands/recover";
 import { capture, captureCdp, captureResponsive, compare, download } from "./commands/capture";
 import { browserStatus, openBrowser, closeBrowser } from "./commands/browser";
+import { compareFlows } from './commands/compare-flow';
 import { captureFlow } from "./commands/flow";
 import { doctor } from "./commands/doctor";
 import { styles } from "./commands/styles";
@@ -94,6 +95,11 @@ program.command('flow').description('Capture named interaction states from an ex
   .option('--viewport <size>', 'Viewport WIDTHxHEIGHT', '1440x900')
   .option('--timeout <seconds>', 'Readiness timeout per step', Number, 30)
   .action((url, options) => captureFlow(url, options.out, options.steps, options));
+
+program.command('compare-flow').description('Compare aligned states and event metadata from two saved flows')
+  .argument('<reference>', 'Reference flow directory').argument('<actual>', 'Actual flow directory')
+  .requiredOption('--out <path>', 'New comparison directory')
+  .action((reference, actual, options) => { compareFlows(reference, actual, options.out); });
 
 program.command("capture-cdp")
   .description("Capture the rendered page and static asset URLs from an authorized Chrome CDP session")
