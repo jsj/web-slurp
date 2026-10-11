@@ -4,7 +4,7 @@
 
 <h1 align="center">web-slurp</h1>
 
-<p align="center">Capture websites for your coding agent.</p>
+<p align="center">See a website you like? Ask your agent to rebuild it.</p>
 
 <p align="center">
   <a href="https://github.com/jsj/web-slurp/actions/workflows/ci.yml"><img src="https://github.com/jsj/web-slurp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
@@ -12,51 +12,29 @@
 </p>
 
 <details open>
-<summary align="center"><img src="https://cdn.jsdelivr.net/gh/jsj/agent-icons@ec84fc0fc6f70311a33800a53121c8cac0e5b48b/claude.svg" width="18" height="18" alt="Claude">&nbsp;<img src="https://cdn.jsdelivr.net/gh/jsj/agent-icons@ec84fc0fc6f70311a33800a53121c8cac0e5b48b/cursor.svg" width="18" height="18" alt="Cursor">&nbsp;<img src="https://cdn.jsdelivr.net/gh/jsj/agent-icons@ec84fc0fc6f70311a33800a53121c8cac0e5b48b/github-copilot.svg" width="18" height="18" alt="GitHub Copilot">&nbsp;<img src="https://cdn.jsdelivr.net/gh/jsj/agent-icons@ec84fc0fc6f70311a33800a53121c8cac0e5b48b/openai.svg" width="18" height="18" alt="OpenAI">&nbsp;&nbsp;<strong>Copy this prompt to your coding agent</strong></summary>
+<summary align="center"><strong>Copy this prompt to your coding agent</strong>&nbsp;&nbsp;<img src=".README/agents.svg" align="absmiddle" width="140" height="36" alt="Claude, Cursor, GitHub Copilot, and OpenAI"></summary>
 
 ```text
 Install web-slurp from https://github.com/jsj/web-slurp.
 Read README.md and SKILL.md.
-Run ./setup.
-Ask me which page to capture.
-Use the captured page, styles, and assets to build my frontend.
-Compare the result with the reference.
+Follow its setup instructions.
+Ask me which website I want to recreate.
+Inspect its layout, fonts, images, styles, and interactions.
+Rebuild it in my project, then compare screenshots and fix the differences.
 ```
 
 </details>
 
-## Install
+## Give your agent a website
 
-Setup installs the runtime and browser on macOS and Linux.
+In Codex, Claude Code, or Cursor, paste the setup prompt above. Then ask:
 
-```sh
-gh repo clone jsj/web-slurp
-cd web-slurp
-./setup
+```text
+Recreate https://example.com in my project with web-slurp.
+Match the layout, typography, images, and interactions.
+Compare desktop and mobile screenshots, then fix the differences.
 ```
 
-If prompted, add `~/.local/bin` to your `PATH`.
+Your agent inspects the rendered page and its actual styles and assets, builds your version, and checks it against the reference. Live APIs and backend behavior need separate implementation.
 
-## Use
-
-```sh
-web-slurp capture https://example.com --out ./targets/example
-web-slurp styles ./targets/example
-web-slurp serve ./targets/example
-```
-
-Captures save HTML, screenshots, scripts, styles, images, and fonts for your agent to inspect and rebuild. Local replay does not reproduce live APIs.
-
-The [full guide](references/usage.md) covers login profiles, mobile layouts, motion, interaction recording and comparison, and bundle recovery.
-
-[Troubleshooting](references/capture-troubleshooting.md) · [Agent skill](SKILL.md)
-
-## Update
-
-```sh
-web-slurp update
-```
-
-Update requires a clean checkout. To remove installed links, run `web-slurp uninstall`.
-
-[Development](references/usage.md#develop) · [License](LICENSE)
+[Setup and usage](references/usage.md) · [Troubleshooting](references/capture-troubleshooting.md) · [Development](references/usage.md#develop) · [License](LICENSE)
