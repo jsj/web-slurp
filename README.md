@@ -35,8 +35,6 @@ cd web-slurp
 ./setup
 ```
 
-Setup copies the package to `~/.web-slurp` and links the CLI and agent skill there.
-You can move or remove the original checkout. Setup and update fetch the latest agent-browser release.
 If prompted, add `~/.local/bin` to your `PATH`.
 
 ## Use
@@ -47,20 +45,11 @@ web-slurp styles ./targets/example
 web-slurp serve ./targets/example
 ```
 
-Each capture saves the page HTML, a screenshot, and the loaded scripts, styles, images, and fonts.
-Local replay does not reproduce live APIs.
+Captures save HTML, screenshots, scripts, styles, images, and fonts for your agent to inspect and rebuild. Local replay does not reproduce live APIs.
 
-Add `--motion` to `capture` or `capture-cdp` to save animation timing, keyframes, hover CSS rules, exposed GSAP/ScrollTrigger settings, and sampled inline-style changes under `input/motion/runtime.json`. The opt-in scroll sweep distinguishes repeatable scroll candidates from timer-driven or unsettled changes; it records evidence, not a verified interaction clone.
+The [full guide](references/usage.md) covers login profiles, mobile layouts, motion, interaction recording and comparison, and bundle recovery.
 
-Add `--layout` or `--layout '#app'` to capture rendered geometry, computed styles, and matched/inherited CSS rules with stylesheet URLs. For interaction walkthroughs, `flow --record` saves rrweb snapshots and mutations across navigation. Steps can use exact accessible role/name locators when a CSS selector changes. See the [walkthrough guide](references/usage.md#capture-an-interaction-walkthrough) for examples and limits.
-
-Profiles keep your login. You can also capture mobile layouts and interactions, then compare your frontend with a screenshot reference.
-
-Recover readable modules and React JSX from captured bundles with `web-slurp recover ./raw --out ./output/recovery`. Recovery uses Wakaru locally, extracts original files from available source maps, and writes an import index and provenance alongside preserved inputs. See [bundle inspection](references/usage.md#bundle-inspection) for formats and limits.
-
-An optional installed webcrack CLI provides another recovery engine: add `--engine webcrack`. It requires Node 22/24; normal captures and Wakaru recovery continue to use Bun.
-
-[Full guide](references/usage.md) · [Login and troubleshooting](references/capture-troubleshooting.md) · [Agent skill](SKILL.md)
+[Troubleshooting](references/capture-troubleshooting.md) · [Agent skill](SKILL.md)
 
 ## Update
 
@@ -68,38 +57,6 @@ An optional installed webcrack CLI provides another recovery engine: add `--engi
 web-slurp update
 ```
 
-Update requires a clean checkout. Run `web-slurp uninstall` to remove the installed links.
-Your files and browser profiles remain.
+Update requires a clean checkout. To remove installed links, run `web-slurp uninstall`.
 
-[Development and tests](references/usage.md#develop)
-
-[License](LICENSE)
-
-### Compare interaction flows
-
-Every `flow` now writes `events.json` alongside `flow.json`, retaining selected-page
-request/response metadata, main-frame navigation, console levels, and page-error
-counts attributed to the current step. The observer starts before navigation.
-Event logs exclude headers, bodies, console text, URL credentials, query strings,
-and fragments. URL paths can contain private data; keep captures local as usual.
-The existing DOM, assets, and screenshots retain their existing capture behavior.
-
-Capture the reference and reconstruction using the same steps and viewport, then:
-
-```bash
-web-slurp compare-flow ./targets/reference-flow ./targets/clone-flow --out ./targets/flow-diff
-```
-
-The report aligns exact step names, order, and actions; compares DOM bytes,
-screenshots, and event metadata; and identifies the first changed step. Each
-category reports `changed`, `unchanged`, or `unknown`. Missing event logs (including
-older captures), incomplete steps, mismatched viewports, and truncated event
-coverage remain unknown. Visual differences include saved diff images.
-
-Event comparison ignores asynchronous arrival order within a step, preserves
-counts, and replaces each flow's own origin with `$TARGET` for local clones.
-Other URL paths and origins remain exact. There is no automatic DOM normalization.
-The event log is capped at 10,000 records and reports dropped records and partial
-coverage. Child targets, response content, and activity after capture are outside
-coverage. Step attribution records arrival, not causality. Matching selected
-evidence does not establish behavioral equivalence.
+[Development](references/usage.md#develop) · [License](LICENSE)

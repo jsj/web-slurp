@@ -144,6 +144,35 @@ Add `--layout [selector]` to `capture`, `capture-cdp`, or `flow` for `input/layo
 
 For authenticated flows, sign in with `browser open` first, then add `--profile <name>` and give the first step a selector unique to the signed-in page. `--timeout <seconds>` controls each readiness wait. Unnamed flow browsers are closed automatically; named profiles stay open for reuse.
 
+### Compare interaction flows
+
+Every `flow` now writes `events.json` alongside `flow.json`, retaining selected-page
+request/response metadata, main-frame navigation, console levels, and page-error
+counts attributed to the current step. The observer starts before navigation.
+Event logs exclude headers, bodies, console text, URL credentials, query strings,
+and fragments. URL paths can contain private data; keep captures local as usual.
+The existing DOM, assets, and screenshots retain their existing capture behavior.
+
+Capture the reference and reconstruction using the same steps and viewport, then:
+
+```bash
+web-slurp compare-flow ./targets/reference-flow ./targets/clone-flow --out ./targets/flow-diff
+```
+
+The report aligns exact step names, order, and actions; compares DOM bytes,
+screenshots, and event metadata; and identifies the first changed step. Each
+category reports `changed`, `unchanged`, or `unknown`. Missing event logs (including
+older captures), incomplete steps, mismatched viewports, and truncated event
+coverage remain unknown. Visual differences include saved diff images.
+
+Event comparison ignores asynchronous arrival order within a step, preserves
+counts, and replaces each flow's own origin with `$TARGET` for local clones.
+Other URL paths and origins remain exact. There is no automatic DOM normalization.
+The event log is capped at 10,000 records and reports dropped records and partial
+coverage. Child targets, response content, and activity after capture are outside
+coverage. Step attribution records arrival, not causality. Matching selected
+evidence does not establish behavioral equivalence.
+
 ## Bundle inspection
 
 Select the relevant app bundle from the URL list before downloading. For public assets, use an ordinary HTTP downloader; for authenticated assets, follow the [CDP workflow](capture-troubleshooting.md).
