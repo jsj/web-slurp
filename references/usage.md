@@ -13,11 +13,13 @@ Setup downloads a private Bun runtime and creates a local Python environment. Fr
 Setup installs Bun under `.runtime/`, Python under `.venv/`, locked JavaScript dependencies, and Chromium, checks the runtime, and creates:
 
 - `~/.local/bin/web-slurp` → the package CLI launcher
-- `~/.agents/skills/web-slurp` → this package directory, including `SKILL.md` and its references
+- `~/.agents/skills/web-slurp` → a generated skill-only directory containing instructions, references, and command wrappers
 
 Setup copies the package to `~/.web-slurp`; the original checkout can move or be removed. Set `WEB_SLURP_INSTALL_DIR` to override the installation directory. Add `~/.local/bin` to your shell's `PATH` if setup reports it missing. Installation creates no agent hooks and makes no changes to shell configuration.
 
-If a skill or CLI already exists, setup stops. Use `./setup --backup-existing` to move conflicts to unique backups before creating links. Backups are stored in `web-slurp-backups/` beside the registration directory (for example, `~/.agents/web-slurp-backups/`), outside skill discovery. Repeating setup keeps existing links. Override registration locations with `--skills-dir <dir>` and `--bin-dir <dir>`.
+The skill directory excludes dependencies, so their bundled skills cannot collide with standalone skills. Setup migrates older links to this package root automatically.
+
+If an unrelated skill or CLI already exists, setup stops. Use `./setup --backup-existing` to move conflicts to unique backups before creating links. Backups are stored in `web-slurp-backups/` beside the registration directory (for example, `~/.agents/web-slurp-backups/`), outside skill discovery. Repeating setup keeps existing links. Override registration locations with `--skills-dir <dir>` and `--bin-dir <dir>`.
 
 For authenticated asset downloads, use `./setup --with-cdp`; this installs `websocket-client` in a package-local Python virtual environment. Other Python commands use the same environment when it exists. Use `--skip-browser` for machines that only analyze existing bundles; capture still needs Chromium. See [browser troubleshooting](capture-troubleshooting.md) for Linux ARM64 or missing system libraries.
 

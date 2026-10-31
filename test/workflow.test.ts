@@ -1,8 +1,8 @@
 import { afterEach, expect, test } from 'bun:test';
-import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { register, uninstall } from '../src/commands/setup';
+import { packageRoot, skillRoot, register, uninstall } from '../src/commands/setup';
 import { startReplay } from '../src/commands/serve';
 import { beautify } from '../src/commands/bundles';
 
@@ -41,6 +41,49 @@ test('registration preserves conflicts, repeats cleanly, and removes only owned 
   mkdirSync(skill);
   uninstall(options);
   expect(existsSync(skill)).toBe(true);
+});
+
+test('skill discovery stays outside dependencies and migrates legacy registrations', async () => {
+  const root = temporary();
+  const options = { skillsDir: resolve(root, 'skills'), binDir: resolve(root, 'bin') };
+  mkdirSync(options.skillsDir);
+  const skill = resolve(options.skillsDir, 'web-slurp');
+  symlinkSync(packageRoot, skill);
+  const standalone = resolve(root, 'standalone-browser');
+  mkdirSync(standalone);
+  writeFileSync(resolve(standalone, 'SKILL.md'), 'standalone browser');
+  symlinkSync(standalone, resolve(options.skillsDir, 'agent-browser'));
+  register(options);
+  register(options);
+  expect(realpathSync(skill)).toBe(skillRoot);
+  expect(existsSync(resolve(skill, 'node_modules'))).toBe(false);
+  const discovered: string[] = [];
+  function discover(directory: string) {
+    for (const name of readdirSync(directory)) {
+      const path = resolve(directory, name);
+      if (statSync(path).isDirectory()) discover(path);
+      else if (name === 'SKILL.md') discovered.push(path);
+    }
+  }
+  discover(options.skillsDir);
+  expect(discovered.sort()).toEqual([
+    resolve(options.skillsDir, 'agent-browser/SKILL.md'), resolve(skill, 'SKILL.md'),
+  ].sort());
+  expect(readFileSync(resolve(skill, 'references/usage.md'), 'utf8')).toContain('Setup');
+  const wrapper = Bun.spawn(['sh', resolve(skill, 'scripts/agent-browser.sh'), '--version'], { stdout: 'pipe', stderr: 'pipe' });
+  expect(await wrapper.exited).toBe(0);
+  expect(await new Response(wrapper.stdout).text()).toContain('agent-browser');
+  uninstall(options);
+  expect(readFileSync(resolve(options.skillsDir, 'agent-browser/SKILL.md'), 'utf8')).toBe('standalone browser');
+});
+
+test('uninstall removes an owned legacy package link without migrating it', () => {
+  const root = temporary();
+  const options = { skillsDir: resolve(root, 'skills'), binDir: resolve(root, 'bin') };
+  mkdirSync(options.skillsDir);
+  symlinkSync(packageRoot, resolve(options.skillsDir, 'web-slurp'));
+  uninstall(options);
+  expect(existsSync(resolve(options.skillsDir, 'web-slurp'))).toBe(false);
 });
 
 test('capture discovers imports, waits for the page, and preserves evidence', async () => {
