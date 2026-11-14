@@ -1,6 +1,6 @@
 ---
 name: web-slurp
-description: Capture rendered websites, inspect JavaScript bundles and CSS tokens, and replay local references. Use for frontend reconstruction, bundle archaeology, and evidence-backed analysis of how a website is implemented.
+description: "Use to capture websites, inspect JavaScript and CSS, recover frontend implementation, or replay local references."
 ---
 
 # Web Slurp

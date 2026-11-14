@@ -56,13 +56,15 @@ test('skill discovery stays outside dependencies and migrates legacy registratio
   register(options);
   register(options);
   expect(realpathSync(skill)).toBe(skillRoot);
+  expect(lstatSync(resolve(skill, 'SKILL.md')).isFile()).toBe(true);
+  expect(statSync(resolve(skill, 'SKILL.md')).ino).toBe(statSync(resolve(packageRoot, 'SKILL.md')).ino);
   expect(existsSync(resolve(skill, 'node_modules'))).toBe(false);
   const discovered: string[] = [];
   function discover(directory: string) {
     for (const name of readdirSync(directory)) {
       const path = resolve(directory, name);
       if (statSync(path).isDirectory()) discover(path);
-      else if (name === 'SKILL.md') discovered.push(path);
+      else if (name === 'SKILL.md' && !lstatSync(path).isSymbolicLink()) discovered.push(path);
     }
   }
   discover(options.skillsDir);

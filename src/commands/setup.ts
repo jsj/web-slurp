@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { agentBrowserCli, agentBrowserEnv } from "../agent-browser";
@@ -31,7 +31,17 @@ function prepareSkill(): void {
   mkdirSync(resolve(skillRoot, "scripts"), { recursive: true });
   // Export only instructions and references. Registering the package root also
   // exposes dependency SKILL.md files to recursive skill discovery.
-  for (const name of ["SKILL.md", "references", "agents"]) {
+  // Codex follows directory symlinks but skips file symlinks. A hard link keeps
+  // instructions shared with the package; re-register after source replacement.
+  const instructions = resolve(skillRoot, "SKILL.md");
+  if (present(instructions)) {
+    if (!owned(resolve(packageRoot, "SKILL.md"), instructions) && !lstatSync(instructions).isFile()) {
+      throw new Error(`Unexpected file in generated skill: ${instructions}`);
+    }
+    unlinkSync(instructions);
+  }
+  linkSync(resolve(packageRoot, "SKILL.md"), instructions);
+  for (const name of ["references", "agents"]) {
     const source = resolve(packageRoot, name), target = resolve(skillRoot, name);
     if (!owned(source, target)) {
       if (present(target)) throw new Error(`Unexpected file in generated skill: ${target}`);
